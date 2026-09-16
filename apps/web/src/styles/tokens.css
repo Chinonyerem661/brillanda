@@ -1,0 +1,31 @@
+/* Design tokens — Build Guide §6. The only source of colour in the app. */
+:root {
+  /* Neutral base */
+  --color-bg:            #FAFAFA;
+  --color-surface:       #FFFFFF;
+  --color-border:        #E2E2E5;
+  --color-border-strong: #C7C7CC;
+
+  /* Text */
+  --color-text-primary:   #1F2023;
+  --color-text-secondary: #6B6F76;
+  --color-text-muted:     #9A9DA3;
+
+  /* Primary action — graphite, not blue, to stay neutral/brand-agnostic */
+  --color-primary:        #33353A;
+  --color-primary-hover:  #202124;
+  --color-primary-text:   #FFFFFF;
+
+  /* Focus / links — a single restrained slate accent, used sparingly */
+  --color-accent:         #4B5563;
+
+  /* Status (muted, not saturated) — badges and alerts only, never large surfaces */
+  --color-success:    #3F7A57;
+  --color-success-bg: #EAF3EE;
+  --color-warning:    #A9760C;
+  --color-warning-bg: #FBF3E1;
+  --color-danger:     #B3423B;
+  --color-danger-bg:  #FBEAE8;
+
+  /* Grading badges reuse the status set: A/B → success, C → warning, D/F → danger */
+}

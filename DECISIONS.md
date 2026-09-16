@@ -1,0 +1,68 @@
+# Decisions
+
+Deviations from, and resolutions of, the **BRD v1** and the **Engineering Build Guide**.
+The BRD wins on scope; the Build Guide wins on how. Anything the two leave open, or that
+could not be built as written, is recorded here so the code never silently drifts.
+
+## Product decisions (product owner, 2026-09-15)
+
+| ID | Decision | Notes |
+|---|---|---|
+| D-1 | Positions are ranked **within the arm** by default (3rd of 30 in JSS 1A). | School setting `positionScope`: `ARM` \| `CLASS`. |
+| D-2 | Ties use **competition ranking** by default: 1, 2, 2, 4. | School setting `tieMode`: `COMPETITION` \| `DENSE` (1, 2, 2, 3). Satisfies FR-13.4 "configurable"; there is still exactly one ranking function, taking the mode as a parameter. |
+| D-3 | An **empty score cell means "not entered yet"** and blocks *Mark complete*. | Absent students are recorded as `ABS` (`Score.isAbsent = true`, value 0). A typed 0 counts as 0. |
+| D-4 | **One account per email**, unique across the platform. | Deviates from FR-7.2's "a person could hold accounts at multiple schools": they can, with a different email per school. Emails are stored lowercase. |
+| D-5 | Parents get in by **email invite** by default; schools may also issue **printed access codes** to parents without email. | School setting `parentAccessCodes`. A code-only parent is a `User` with role `PARENT` and no email, linked to children the same way. Codes are stored hashed and shown once. |
+| D-6 | Local development runs Postgres, Redis and Mailpit in **Docker Desktop**. | See S-8. |
+
+## Spec fixes
+
+| ID | Problem in the spec | Resolution |
+|---|---|---|
+| F-1 | Inclusive ranges like 70–100 = A, 60–69 = B leave 69.5 matching no band, so `resolveGrade` throws. Float maths (e.g. 7/20 × 20) can produce 69.9999…. | Grade bands are **thresholds** (`minScore` only): a total gets the highest band it reaches. Every scale must include a band at 0, so gaps are impossible. Totals are rounded to 2 dp before grading. |
+| F-2 | Assessment components and grading scales had no session/term, so editing next year's scale would change last year's report cards on regeneration (contradicts Guide §9 and FR-8.6). | Both are **scoped to an academic session**; rollover copies them forward. `Result` rows are frozen while a class is published, and `PublishStatus.configSnapshot` stores the scale/components printed on report cards. |
+| F-3 | `Result` is recomputed on every score change, which would silently wipe an admin override (FR-13.5). | `Result.total` is the effective total; `computedTotal` always holds the system value. `isOverridden` + `overrideReason` make recomputation update `computedTotal` only. |
+| F-4 | FR-15.1/15.2 track status per class **and subject**, but `PublishStatus` was unique per (class, term), and FR-12.7's unlock request had no model. | New `SubjectEntryStatus` per (arm, subject, term) for not started → in progress → complete → locked, plus `UnlockRequest`. `PublishStatus` stays per (class, term) for publishing. |
+| F-5 | Arms were missing from assignments, publish status and ranking, so a JSS 1A teacher would see JSS 1B students. | `armId` added to `TeacherAssignment`, `Enrollment` (required), `SubjectEntryStatus`, `Result`, `TermSummary`. **Every class has at least one arm**; a class without arms gets one default arm named after the class, and the UI hides it. This avoids nullable columns inside unique keys. |
+| F-6 | No link from parent accounts to students (portal couldn't find "my children"). | `ParentStudent` join table; `Student.userId` for the STUDENT role login. |
+| F-7 | No storage for invite links (72 h), password-reset links, or refresh tokens (needed for FR-22.4 idle expiry and revocation). | `AuthToken` (invite / reset, hashed, single-use) and `RefreshToken` (hashed, `lastUsedAt` for idle timeout). |
+| F-8 | No place for the motto (FR-6.4) or school toggles (FR-16.4, FR-23.3, D-1, D-2, D-5). | `School.motto` and `School.settings` (JSON validated against `SchoolSettings` in `@brillanda/shared-types`). |
+| F-9 | "Rollover clones classes/subjects into a new session" — but classes and subjects were never session-scoped. | Classes and subjects persist across sessions. Rollover = create session + terms, copy assessment config (F-2), batch-promote students. |
+| F-10 | Guide has a `staff` module but no staff table; `User` had no phone. | Staff are `User`s (TEACHER / SCHOOL_ADMIN) with an added `phone`. |
+| F-11 | `Student.status` was free text duplicating the enrollment enum; `guardianContact` mixed phone and email. | `Student.status` uses `EnrollmentStatus`. `guardianContact` split into `guardianPhone` and `guardianEmail` (the latter enables parent invites on import). |
+| F-12 | `Score.teacherId` is misleading: admins can enter scores too. | Renamed `enteredById`. `Score.isAbsent` added (D-3). |
+| F-13 | Ranking needs each student's arm at the time of computation; FR-14.4 allows an admin remark. | `Result` and `TermSummary` store `classId` + `armId`. `TermSummary.average` is null until all class subjects have results; `adminRemark` added. |
+| F-14 | FR-20.5 needs audit logs immutable, not just "no edit endpoint". | A database trigger rejects `UPDATE`/`DELETE` on `AuditLog`. The table has no foreign keys, so it never blocks or cascades. |
+| F-15 | Invited users have no password yet; code-only parents have no email. | `User.passwordHash` and `User.email` are nullable. |
+| F-16 | — | Actor columns (`lockedById`, `publishedById`, `completedById`, `resolvedById`) are plain ids, not foreign keys: users are deactivated, never deleted. |
+| F-17 | Guide asks for an explicit `(schoolId)` index on every table. | Omitted where a composite index or unique constraint already starts with `schoolId` (it would be redundant). |
+| F-18 | Must-have requirements with no endpoint in Guide §5. | To add in their phases: full data export (FR-19.4), import template download (FR-19.1), unlock requests (FR-12.7), parent access-code login (D-5). |
+| F-19 | FR-13.6 says recomputation is "instantaneous"; Guide §8 debounces class-wide positions. | Kept the Guide's approach: each student's subject total/grade is recomputed on every save; class positions are debounced and always refreshed when the Publishing screen opens. |
+| F-20 | "Only one active session/term per school" (FR-8.1). | Enforced in the service layer inside a transaction. Partial unique indexes were avoided because Prisma would try to drop them in later migrations. |
+| F-21 | Suspending a school (FR-6.5) must cut off users who are already logged in. | Auth middleware checks school status on each request (Phase 1 step 2). |
+| F-22 | Scoping queries by `schoolId` does not stop a request from referencing another school's record by id. | Every client-supplied id (student, component, class…) is verified to belong to the caller's school — and, for teachers, to their assignment — and covered by the cross-tenant test suite. |
+| F-23 | Guide §1 says "JWT access + refresh token" but not where the refresh token lives or how it is revoked. | **Access token:** HS256 JWT, 15 min, carrying only the user id. Role, status and school are loaded from the database on every request, so deactivation and suspension take effect immediately. **Refresh token:** opaque random value, stored hashed, sent in an `httpOnly`, `SameSite=Strict` cookie limited to `/api/v1/auth` (never readable by JavaScript). Rotated on every use; the old token keeps working for 60 s so tabs refreshing together don't log each other out. A rotated token reused after that is treated as stolen and ends all of the user's sessions. Idle timeout (24 h) and maximum age (30 days) are configurable. `JWT_REFRESH_SECRET` is not needed. |
+| F-24 | Guide §3's `withTenant` helper relies on every developer remembering to call it correctly. | `withTenant(schoolId)` is a Prisma client extension: reads, updates and deletes on every model with a `schoolId` column get `schoolId` ANDed into the filter, creates are stamped, and writes naming another school are refused. New models are covered automatically; a test pins the list. Still not covered: ids inside `data`, nested writes, raw SQL (see F-22). |
+| F-25 | Login needs brute-force protection, but a whole school often shares one IP address. | Login and forgot-password are rate-limited per IP **and** email (10 / 15 min and 5 / h), with a generous per-IP ceiling (300 / 15 min). Access codes: 50 / 15 min per IP. Counters are in memory, which is fine for one API instance; switch to the Redis store if the API is scaled out. |
+| F-26 | Invites are part of auth (Guide §11 step 2) but `POST /users/invite` sits in the users module. | Built now; the rest of the users module comes with staff CRUD in step 4. Inviting someone whose invite is still pending re-sends it with a fresh link and retires the old one. Only TEACHER and SCHOOL_ADMIN can be invited here; parents are invited alongside student records. |
+| F-27 | Endpoints the web app needs that Guide §5 doesn't list. | `GET /auth/me`, `POST /auth/logout`, `GET /auth/invite/:token` (shows who the invite is for), `POST /auth/access-code` (D-5). |
+| F-28 | Password rules weren't specified. | 8–72 characters (72 bytes is bcrypt's limit), no composition rules, per NIST SP 800-63B: simpler for non-technical users and no weaker in practice. bcrypt cost 12. Reset links last 1 hour, and a reset logs the user out everywhere. |
+| F-29 | Guide §10's `scopeToTeacherAssignment` middleware. | Deferred to the scores module (Phase 2), the first place teachers act on class data. |
+
+## Stack substitutions
+
+| ID | Choice | Why |
+|---|---|---|
+| S-1 | npm workspaces | Monorepo tooling wasn't specified; npm 10 is already installed. |
+| S-2 | `bcryptjs` instead of `bcrypt` | Same algorithm, pure JS: no native build on Windows or in slim containers. |
+| S-3 | Prisma pinned to 6.x | Prisma 7 changes the generator and config model; upgrade deliberately later. |
+| S-4 | Tailwind 3.4 | The Guide's `tailwind.config.ts` is the v3 config model (v4 is CSS-first). Config lives in `apps/web/src/styles/` per Guide §2 and is referenced from `postcss.config.js`. The palette is replaced, not extended, so only design tokens are available. |
+| S-5 | Express 5 | Current stable; forwards errors from async handlers to the error middleware natively. |
+| S-6 | Zod 3, Vite 6 | Current stable lines at time of scaffolding. |
+| S-7 | TypeScript runs via `tsx` in the API (`moduleResolution: Bundler`) | No build step in development; production build tooling is decided with the deployment work. |
+| S-8 | `docker-compose.yml` runs Postgres, Redis and Mailpit only | API and web run on the host during development. The API container and reverse proxy (Guide §1) are added before deployment. An init script creates the `brillanda_test` database for integration tests. |
+| S-9 | `jsonwebtoken`, `cookie-parser`, `express-rate-limit`, `nodemailer` | Standard, small, well-maintained choices for F-23, F-25 and email. |
+
+## Open questions
+
+- **Elective subjects.** The model assumes every student in a class takes every subject assigned to that class. Senior classes (Physics vs Literature) and religious studies (CRS vs IRS) usually break this, and it affects FR-13.3's "average once all subjects are complete". Needs a decision before Phase 2 score entry; the likely fix is an optional per-student subject list.

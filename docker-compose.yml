@@ -1,0 +1,44 @@
+# Local development services. The API and web app run on the host with `npm run dev:*`;
+# an API container and reverse proxy are added before deployment (DECISIONS.md S-8).
+name: brillanda
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: brillanda
+      POSTGRES_PASSWORD: brillanda
+      POSTGRES_DB: brillanda
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Creates the separate brillanda_test database used by integration tests.
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U brillanda -d brillanda"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+  # Catches every email the app sends in development (invites, resets, publish notices).
+  # Inbox UI: http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+volumes:
+  postgres-data:
+  redis-data:

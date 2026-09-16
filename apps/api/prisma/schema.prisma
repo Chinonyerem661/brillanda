@@ -1,0 +1,660 @@
+// Brillanda data model — Build Guide §4, with the fixes listed in DECISIONS.md.
+//
+// Tenancy rule (Build Guide §3): every school-owned table carries schoolId, and every
+// query against it is scoped by the schoolId from the authenticated session — never
+// from client input. A separate (schoolId) index is omitted where a composite index or
+// unique constraint already starts with schoolId.
+//
+// Columns that record who performed an action (lockedById, publishedById, ...) are plain
+// ids rather than foreign keys: users are deactivated, never deleted.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  SCHOOL_ADMIN
+  TEACHER
+  PARENT
+  STUDENT
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  DEACTIVATED
+}
+
+enum SchoolStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  WITHDRAWN
+  GRADUATED
+  TRANSFERRED
+}
+
+/// Score-entry progress for one (arm, subject, term).
+enum EntryState {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETE
+  LOCKED
+}
+
+/// Publishing gate for one (class, term).
+enum PublishState {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETE
+  LOCKED
+  PUBLISHED
+}
+
+enum PlanTier {
+  TRIAL
+  BASIC
+  STANDARD
+}
+
+enum AuthTokenType {
+  INVITE
+  PASSWORD_RESET
+}
+
+enum UnlockRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ─── Tenancy & identity ──────────────────────────────────────────────────────
+
+model School {
+  id           String       @id @default(cuid())
+  name         String
+  slug         String       @unique
+  logoUrl      String?
+  motto        String?
+  address      String?
+  contactEmail String?
+  contactPhone String?
+  planTier     PlanTier     @default(TRIAL)
+  studentLimit Int          @default(150)
+  status       SchoolStatus @default(ACTIVE)
+  /// Validated against SchoolSettings in @brillanda/shared-types.
+  settings     Json         @default("{}")
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  users              User[]
+  sessions           AcademicSession[]
+  terms              Term[]
+  classes            Class[]
+  arms               Arm[]
+  subjects           Subject[]
+  classSubjects      ClassSubject[]
+  students           Student[]
+  enrollments        Enrollment[]
+  parentLinks        ParentStudent[]
+  accessCodes        ParentAccessCode[]
+  teacherAssignments TeacherAssignment[]
+  components         AssessmentComponent[]
+  gradingScale       GradingScaleEntry[]
+  scores             Score[]
+  results            Result[]
+  termSummaries      TermSummary[]
+  entryStatuses      SubjectEntryStatus[]
+  unlockRequests     UnlockRequest[]
+  publishStatuses    PublishStatus[]
+  notifications      Notification[]
+}
+
+/// Staff, parents and students all log in as Users (DECISIONS.md F-10).
+model User {
+  id           String     @id @default(cuid())
+  /// Null only for SUPER_ADMIN.
+  schoolId     String?
+  /// Globally unique, stored lowercase (D-4). Null for parents who only use an access code (D-5).
+  email        String?    @unique
+  /// Null until an invited user sets their password.
+  passwordHash String?
+  fullName     String
+  phone        String?
+  role         Role
+  status       UserStatus @default(INVITED)
+  lastLoginAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  school             School?             @relation(fields: [schoolId], references: [id])
+  authTokens         AuthToken[]
+  refreshTokens      RefreshToken[]
+  teacherAssignments TeacherAssignment[]
+  children           ParentStudent[]
+  accessCodes        ParentAccessCode[]
+  studentProfile     Student?
+  scoresEntered      Score[]
+  notifications      Notification[]
+
+  @@index([schoolId])
+}
+
+/// Single-use invite (72 h, FR-7.1) and password-reset links.
+model AuthToken {
+  id        String        @id @default(cuid())
+  userId    String
+  type      AuthTokenType
+  /// SHA-256 of the token; the raw token only ever exists in the emailed link.
+  tokenHash String        @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime      @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model RefreshToken {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  /// Bumped on every refresh; a session idle longer than SESSION_IDLE_TIMEOUT_HOURS is rejected (FR-22.4).
+  lastUsedAt DateTime  @default(now())
+  /// Set when exchanged for a new token. Still accepted briefly so tabs refreshing at the same
+  /// moment don't log each other out (DECISIONS.md F-23).
+  rotatedAt  DateTime?
+  /// Set by logout, password reset, or suspected token theft. Never accepted again.
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ─── Academic structure ──────────────────────────────────────────────────────
+
+model AcademicSession {
+  id        String    @id @default(cuid())
+  schoolId  String
+  name      String
+  /// At most one active session per school, enforced in the service layer (F-20).
+  isActive  Boolean   @default(false)
+  startDate DateTime? @db.Date
+  endDate   DateTime? @db.Date
+  closedAt  DateTime?
+  createdAt DateTime  @default(now())
+
+  school             School                @relation(fields: [schoolId], references: [id])
+  terms              Term[]
+  enrollments        Enrollment[]
+  teacherAssignments TeacherAssignment[]
+  components         AssessmentComponent[]
+  gradingScale       GradingScaleEntry[]
+
+  @@unique([schoolId, name])
+}
+
+model Term {
+  id        String    @id @default(cuid())
+  schoolId  String
+  sessionId String
+  name      String
+  order     Int
+  /// At most one active term per school, enforced in the service layer (F-20).
+  isActive  Boolean   @default(false)
+  startDate DateTime? @db.Date
+  endDate   DateTime? @db.Date
+
+  school          School               @relation(fields: [schoolId], references: [id])
+  session         AcademicSession      @relation(fields: [sessionId], references: [id])
+  scores          Score[]
+  results         Result[]
+  termSummaries   TermSummary[]
+  entryStatuses   SubjectEntryStatus[]
+  publishStatuses PublishStatus[]
+
+  @@unique([sessionId, order])
+  @@index([schoolId])
+}
+
+/// A class level, e.g. "JSS 1". Persists across sessions (F-9).
+model Class {
+  id       String  @id @default(cuid())
+  schoolId String
+  name     String
+  /// Sort order; also defines the "next class" for batch promotion.
+  order    Int
+  archived Boolean @default(false)
+
+  school             School                @relation(fields: [schoolId], references: [id])
+  arms               Arm[]
+  classSubjects      ClassSubject[]
+  enrollments        Enrollment[]
+  teacherAssignments TeacherAssignment[]
+  components         AssessmentComponent[]
+  gradingScale       GradingScaleEntry[]
+  results            Result[]
+  termSummaries      TermSummary[]
+  entryStatuses      SubjectEntryStatus[]
+  publishStatuses    PublishStatus[]
+
+  @@unique([schoolId, name])
+}
+
+/// e.g. "JSS 1A". Every class has at least one arm; a class without arms gets a single
+/// default arm named after the class, which the UI hides (F-5).
+model Arm {
+  id       String  @id @default(cuid())
+  schoolId String
+  classId  String
+  name     String
+  archived Boolean @default(false)
+
+  school             School               @relation(fields: [schoolId], references: [id])
+  class              Class                @relation(fields: [classId], references: [id])
+  enrollments        Enrollment[]
+  teacherAssignments TeacherAssignment[]
+  results            Result[]
+  termSummaries      TermSummary[]
+  entryStatuses      SubjectEntryStatus[]
+
+  @@unique([classId, name])
+  @@index([schoolId])
+}
+
+model Subject {
+  id       String  @id @default(cuid())
+  schoolId String
+  name     String
+  code     String?
+  archived Boolean @default(false)
+
+  school             School                @relation(fields: [schoolId], references: [id])
+  classSubjects      ClassSubject[]
+  teacherAssignments TeacherAssignment[]
+  components         AssessmentComponent[]
+  scores             Score[]
+  results            Result[]
+  entryStatuses      SubjectEntryStatus[]
+
+  @@unique([schoolId, name])
+}
+
+/// Which subjects are taught in which class level (FR-8.4).
+model ClassSubject {
+  id        String @id @default(cuid())
+  schoolId  String
+  classId   String
+  subjectId String
+
+  school  School  @relation(fields: [schoolId], references: [id])
+  class   Class   @relation(fields: [classId], references: [id])
+  subject Subject @relation(fields: [subjectId], references: [id])
+
+  @@unique([classId, subjectId])
+  @@index([schoolId])
+}
+
+// ─── People ──────────────────────────────────────────────────────────────────
+
+model Student {
+  id            String           @id @default(cuid())
+  schoolId      String
+  admissionNo   String
+  fullName      String
+  dob           DateTime?        @db.Date
+  gender        String?
+  guardianName  String?
+  guardianPhone String?
+  guardianEmail String?
+  photoUrl      String?
+  status        EnrollmentStatus @default(ACTIVE)
+  /// Login for the STUDENT role, when the school enables student self-view (FR-16.4).
+  userId        String?          @unique
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  school        School          @relation(fields: [schoolId], references: [id])
+  user          User?           @relation(fields: [userId], references: [id])
+  enrollments   Enrollment[]
+  parents       ParentStudent[]
+  scores        Score[]
+  results       Result[]
+  termSummaries TermSummary[]
+
+  @@unique([schoolId, admissionNo])
+}
+
+/// A student's class and arm for one session; history is kept across sessions (FR-9.3).
+model Enrollment {
+  id        String           @id @default(cuid())
+  schoolId  String
+  studentId String
+  sessionId String
+  classId   String
+  armId     String
+  status    EnrollmentStatus @default(ACTIVE)
+  createdAt DateTime         @default(now())
+
+  school  School          @relation(fields: [schoolId], references: [id])
+  student Student         @relation(fields: [studentId], references: [id])
+  session AcademicSession @relation(fields: [sessionId], references: [id])
+  class   Class           @relation(fields: [classId], references: [id])
+  arm     Arm             @relation(fields: [armId], references: [id])
+
+  @@unique([studentId, sessionId])
+  @@index([schoolId, sessionId, armId])
+}
+
+/// Links a PARENT user to each of their children (FR-16.3).
+model ParentStudent {
+  id           String   @id @default(cuid())
+  schoolId     String
+  parentId     String
+  studentId    String
+  relationship String?
+  createdAt    DateTime @default(now())
+
+  school  School  @relation(fields: [schoolId], references: [id])
+  parent  User    @relation(fields: [parentId], references: [id])
+  student Student @relation(fields: [studentId], references: [id])
+
+  @@unique([parentId, studentId])
+  @@index([schoolId])
+  @@index([studentId])
+}
+
+/// Printed login code for a parent without email (D-5).
+model ParentAccessCode {
+  id         String    @id @default(cuid())
+  schoolId   String
+  parentId   String
+  /// SHA-256 of the code; the code itself is shown once, when it is created.
+  codeHash   String    @unique
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  school School @relation(fields: [schoolId], references: [id])
+  parent User   @relation(fields: [parentId], references: [id])
+
+  @@index([schoolId])
+  @@index([parentId])
+}
+
+/// A teacher's scope for one session. Subject teaching: subjectId set.
+/// Class (form) teacher: subjectId null and isClassTeacher true.
+model TeacherAssignment {
+  id             String    @id @default(cuid())
+  schoolId       String
+  teacherId      String
+  sessionId      String
+  classId        String
+  armId          String
+  subjectId      String?
+  isClassTeacher Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  /// Set on reassignment; the row stays so history remains attributable (FR-10.4).
+  endedAt        DateTime?
+
+  school  School          @relation(fields: [schoolId], references: [id])
+  teacher User            @relation(fields: [teacherId], references: [id])
+  session AcademicSession @relation(fields: [sessionId], references: [id])
+  class   Class           @relation(fields: [classId], references: [id])
+  arm     Arm             @relation(fields: [armId], references: [id])
+  subject Subject?        @relation(fields: [subjectId], references: [id])
+
+  @@index([schoolId])
+  @@index([teacherId, sessionId])
+  @@index([armId, subjectId])
+}
+
+// ─── Assessment configuration (scoped to a session, F-2) ─────────────────────
+
+/// One scored component. Components sharing a (sessionId, classId, subjectId) scope form a
+/// set whose weights sum to 100. The most specific set wins:
+/// class+subject > subject only > class only > school-wide.
+model AssessmentComponent {
+  id        String  @id @default(cuid())
+  schoolId  String
+  sessionId String
+  classId   String?
+  subjectId String?
+  name      String
+  weight    Float
+  maxScore  Float
+  order     Int
+
+  school  School          @relation(fields: [schoolId], references: [id])
+  session AcademicSession @relation(fields: [sessionId], references: [id])
+  class   Class?          @relation(fields: [classId], references: [id])
+  subject Subject?        @relation(fields: [subjectId], references: [id])
+  scores  Score[]
+
+  @@index([schoolId, sessionId])
+}
+
+/// One grade band. A total gets the band with the highest minScore <= total, so a scale can
+/// never have gaps; every scale must include a band starting at 0 (F-1).
+model GradingScaleEntry {
+  id        String  @id @default(cuid())
+  schoolId  String
+  sessionId String
+  /// Null = the school-wide scale; a class-specific scale replaces it entirely for that class.
+  classId   String?
+  minScore  Float
+  grade     String
+  remark    String
+  /// Counts as a pass in pass/fail rates (FR-18.2).
+  isPass    Boolean @default(true)
+
+  school  School          @relation(fields: [schoolId], references: [id])
+  session AcademicSession @relation(fields: [sessionId], references: [id])
+  class   Class?          @relation(fields: [classId], references: [id])
+
+  @@index([schoolId, sessionId])
+}
+
+// ─── Scores & results ────────────────────────────────────────────────────────
+
+/// One cell of the score-entry grid. No row = not entered yet, which blocks "Mark complete".
+/// An absent student is recorded with isAbsent = true and value 0 (D-3).
+model Score {
+  id          String   @id @default(cuid())
+  schoolId    String
+  studentId   String
+  subjectId   String
+  termId      String
+  componentId String
+  value       Float
+  isAbsent    Boolean  @default(false)
+  /// Last user to save this cell (teacher or admin); full history is in AuditLog.
+  enteredById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  school    School              @relation(fields: [schoolId], references: [id])
+  student   Student             @relation(fields: [studentId], references: [id])
+  subject   Subject             @relation(fields: [subjectId], references: [id])
+  term      Term                @relation(fields: [termId], references: [id])
+  component AssessmentComponent @relation(fields: [componentId], references: [id])
+  enteredBy User                @relation(fields: [enteredById], references: [id])
+
+  @@unique([studentId, subjectId, termId, componentId])
+  @@index([schoolId, termId, subjectId])
+}
+
+/// Computed subject result. Recomputed whenever scores change; frozen while the class's
+/// results are published (F-2).
+model Result {
+  id                String   @id @default(cuid())
+  schoolId          String
+  studentId         String
+  subjectId         String
+  termId            String
+  /// Placement when computed; positions are grouped by arm or class per school settings.
+  classId           String
+  armId             String
+  /// Effective total: computedTotal, or the admin's override.
+  total             Float
+  computedTotal     Float
+  grade             String
+  remark            String
+  positionInSubject Int?
+  /// Set by an admin override (FR-13.5); recomputation then updates computedTotal only (F-3).
+  isOverridden      Boolean  @default(false)
+  overrideReason    String?
+  computedAt        DateTime @updatedAt
+
+  school  School  @relation(fields: [schoolId], references: [id])
+  student Student @relation(fields: [studentId], references: [id])
+  subject Subject @relation(fields: [subjectId], references: [id])
+  term    Term    @relation(fields: [termId], references: [id])
+  class   Class   @relation(fields: [classId], references: [id])
+  arm     Arm     @relation(fields: [armId], references: [id])
+
+  @@unique([studentId, subjectId, termId])
+  @@index([schoolId, termId, classId])
+}
+
+model TermSummary {
+  id                 String   @id @default(cuid())
+  schoolId           String
+  studentId          String
+  termId             String
+  classId            String
+  armId              String
+  /// Null until every class subject has a result for this student (FR-13.3).
+  average            Float?
+  subjectCount       Int      @default(0)
+  overallPosition    Int?
+  classTeacherRemark String?
+  /// Principal / head teacher remark (FR-14.4).
+  adminRemark        String?
+  computedAt         DateTime @updatedAt
+
+  school  School  @relation(fields: [schoolId], references: [id])
+  student Student @relation(fields: [studentId], references: [id])
+  term    Term    @relation(fields: [termId], references: [id])
+  class   Class   @relation(fields: [classId], references: [id])
+  arm     Arm     @relation(fields: [armId], references: [id])
+
+  @@unique([studentId, termId])
+  @@index([schoolId, termId, classId])
+}
+
+// ─── Workflow ────────────────────────────────────────────────────────────────
+
+/// Score-entry progress per (arm, subject, term): Mark complete, lock, unlock (FR-12.7, FR-15.1-2).
+model SubjectEntryStatus {
+  id            String     @id @default(cuid())
+  schoolId      String
+  classId       String
+  armId         String
+  subjectId     String
+  termId        String
+  status        EntryState @default(NOT_STARTED)
+  completedById String?
+  completedAt   DateTime?
+  lockedById    String?
+  lockedAt      DateTime?
+  updatedAt     DateTime   @updatedAt
+
+  school         School          @relation(fields: [schoolId], references: [id])
+  class          Class           @relation(fields: [classId], references: [id])
+  arm            Arm             @relation(fields: [armId], references: [id])
+  subject        Subject         @relation(fields: [subjectId], references: [id])
+  term           Term            @relation(fields: [termId], references: [id])
+  unlockRequests UnlockRequest[]
+
+  @@unique([armId, subjectId, termId])
+  @@index([schoolId, termId])
+}
+
+/// A teacher asking an admin to reopen a locked subject (FR-12.7).
+model UnlockRequest {
+  id            String              @id @default(cuid())
+  schoolId      String
+  entryStatusId String
+  requestedById String
+  reason        String
+  status        UnlockRequestStatus @default(PENDING)
+  resolvedById  String?
+  resolvedAt    DateTime?
+  createdAt     DateTime            @default(now())
+
+  school      School             @relation(fields: [schoolId], references: [id])
+  entryStatus SubjectEntryStatus @relation(fields: [entryStatusId], references: [id])
+
+  @@index([schoolId, status])
+}
+
+/// Publishing gate per (class, term) (FR-15.4).
+model PublishStatus {
+  id             String       @id @default(cuid())
+  schoolId       String
+  classId        String
+  termId         String
+  status         PublishState @default(NOT_STARTED)
+  lockedById     String?
+  lockedAt       DateTime?
+  publishedById  String?
+  publishedAt    DateTime?
+  /// Grading scale and components in force at publish time, printed as the key on report cards.
+  configSnapshot Json?
+
+  school School @relation(fields: [schoolId], references: [id])
+  class  Class  @relation(fields: [classId], references: [id])
+  term   Term   @relation(fields: [termId], references: [id])
+
+  @@unique([classId, termId])
+  @@index([schoolId, termId])
+}
+
+/// Append-only: a database trigger rejects UPDATE and DELETE (FR-20.5). No foreign keys,
+/// so the log never blocks or cascades from changes elsewhere.
+model AuditLog {
+  id         String   @id @default(cuid())
+  schoolId   String
+  userId     String
+  action     String
+  entityType String
+  entityId   String
+  oldValue   Json?
+  newValue   Json?
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  @@index([schoolId, createdAt])
+  @@index([schoolId, entityType, entityId])
+  @@index([schoolId, userId])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  schoolId  String
+  userId    String
+  type      String
+  payload   Json
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  school School @relation(fields: [schoolId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([schoolId])
+  @@index([userId, readAt])
+}
