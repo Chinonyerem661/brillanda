@@ -14,6 +14,9 @@ export default {
         DEFAULT: "var(--color-border)",
         strong: "var(--color-border-strong)",
       },
+      divider: "var(--color-divider)",
+      field: "var(--color-field)",
+      hover: "var(--color-hover)",
       text: {
         primary: "var(--color-text-primary)",
         secondary: "var(--color-text-secondary)",
@@ -35,6 +38,22 @@ export default {
     extend: {
       // Minimum touch target for form controls (Build Guide §6).
       minHeight: { touch: "40px" },
+      boxShadow: {
+        raised: "var(--shadow-raised)",
+      },
+      keyframes: {
+        "fade-out": { "0%, 60%": { opacity: "1" }, "100%": { opacity: "0" } },
+        settle: { "0%": { opacity: "0.35", transform: "translateY(3px)" }, "100%": { opacity: "1", transform: "none" } },
+        rise: { "0%": { opacity: "0", transform: "translateY(8px)" }, "100%": { opacity: "1", transform: "none" } },
+      },
+      animation: {
+        // The per-cell "saved" tick: visible briefly, then gone, so a full grid stays calm.
+        "fade-out": "fade-out 2s ease-out forwards",
+        // A changed total settles into place, showing what the last entry did.
+        settle: "settle 220ms ease-out",
+        // The one entrance on a page (auth card).
+        rise: "rise 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both",
+      },
     },
   },
 } satisfies Config;

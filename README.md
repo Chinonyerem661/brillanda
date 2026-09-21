@@ -26,6 +26,14 @@ npm run dev:web      # http://localhost:5173
 
 Emails sent in development land in Mailpit: http://localhost:8025
 
+### Stand-in data
+
+The frontend is being built ahead of parts of the API (see DECISIONS.md D-7). In development,
+login is real, but teachers' classes and scores come from stand-in data (a "Sample data" badge
+shows in the header). Scores you enter there are kept in your browser's local storage. To call
+the real API for everything, set `VITE_USE_MOCKS=false` in `apps/web/.env.local`. Production
+builds never include stand-in data.
+
 ## Demo accounts
 
 All use the password `Password123!`

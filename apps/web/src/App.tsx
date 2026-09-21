@@ -1,35 +1,58 @@
-import { useEffect, useState } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { lazy, Suspense } from "react";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { ApiError } from "./shared/api/client";
+import { LoginPage } from "./shared/auth/LoginPage";
+import { AcceptInvitePage, ForgotPasswordPage, ResetPasswordPage } from "./shared/auth/PasswordPages";
+import { HomeRedirect, RequireRole, useRestoreSession } from "./shared/auth/session";
+import { PageSpinner } from "./shared/components/Spinner";
 
-type ApiState = "checking" | "ok" | "down";
+// One app, one folder per portal (DECISIONS.md D-8). Each portal loads only when its user
+// arrives, so a parent's phone never downloads the teacher or admin screens.
+const TeacherPortal = lazy(() => import("./portals/teacher/TeacherPortal"));
+const AdminPortal = lazy(() => import("./portals/admin/AdminPortal"));
+const ParentPortal = lazy(() => import("./portals/parent/ParentPortal"));
+const SuperAdminPortal = lazy(() => import("./portals/super-admin/SuperAdminPortal"));
 
-const API_LABEL: Record<ApiState, { text: string; className: string }> = {
-  checking: { text: "Checking…", className: "bg-bg text-text-secondary" },
-  ok: { text: "Connected", className: "bg-success-bg text-success" },
-  down: { text: "Not reachable", className: "bg-danger-bg text-danger" },
-};
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      // Retry network blips, not answers: a 4xx won't change by asking again.
+      retry: (failures, error) => !(error instanceof ApiError && error.status >= 400 && error.status < 500) && failures < 2,
+    },
+  },
+});
 
-// Placeholder shell until the login screen lands in Phase 1 step 2.
-export default function App() {
-  const [api, setApi] = useState<ApiState>("checking");
-
-  useEffect(() => {
-    fetch("/api/v1/health")
-      .then((res) => setApi(res.ok ? "ok" : "down"))
-      .catch(() => setApi("down"));
-  }, []);
-
-  const label = API_LABEL[api];
+export function AppRoutes() {
+  useRestoreSession();
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-4">
-      <div className="w-full max-w-sm rounded-lg border border-border bg-surface p-6">
-        <h1 className="text-xl font-semibold">Brillanda</h1>
-        <p className="mt-1 text-text-secondary">School results &amp; records</p>
-        <div className="mt-6 flex items-center justify-between text-sm">
-          <span className="text-text-muted">API</span>
-          <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${label.className}`}>{label.text}</span>
-        </div>
-      </div>
-    </main>
+    <Suspense fallback={<PageSpinner fullScreen />}>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+        <Route path="/invite/:token" element={<AcceptInvitePage />} />
+        <Route path="/teacher/*" element={<RequireRole roles={["TEACHER"]}><TeacherPortal /></RequireRole>} />
+        <Route path="/admin/*" element={<RequireRole roles={["SCHOOL_ADMIN"]}><AdminPortal /></RequireRole>} />
+        <Route path="/portal/*" element={<RequireRole roles={["PARENT", "STUDENT"]}><ParentPortal /></RequireRole>} />
+        <Route path="/super-admin/*" element={<RequireRole roles={["SUPER_ADMIN"]}><SuperAdminPortal /></RequireRole>} />
+        <Route path="*" element={<HomeRedirect />} />
+      </Routes>
+    </Suspense>
+  );
+}
+
+/** Opts in to React Router v7 behaviour now, so the eventual upgrade changes nothing. */
+export const ROUTER_FUTURE = { v7_startTransition: true, v7_relativeSplatPath: true } as const;
+
+export default function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter future={ROUTER_FUTURE}>
+        <AppRoutes />
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 }

@@ -1,4 +1,7 @@
-// Types shared by the API and the web app. Keep this package dependency-free.
+// Types and pure logic shared by the API and the web app. Keep this package dependency-free.
+
+export * from "./grading";
+export * from "./teacher";
 
 export const ROLES = ["SUPER_ADMIN", "SCHOOL_ADMIN", "TEACHER", "PARENT", "STUDENT"] as const;
 export type Role = (typeof ROLES)[number];
@@ -38,4 +41,24 @@ export const DEFAULT_SCHOOL_SETTINGS: SchoolSettings = {
 export type ValidationErrorBody = {
   error: string;
   fields: Record<string, string[] | undefined>;
+};
+
+/** The signed-in user, as returned by login, refresh and GET /auth/me. */
+export type SessionUser = {
+  id: string;
+  fullName: string;
+  email: string | null;
+  role: Role;
+  school: { id: string; name: string; slug: string; logoUrl: string | null } | null;
+};
+
+/** Body of a successful login, access-code login, refresh or invite acceptance. */
+export type SessionResponse = { accessToken: string; user: SessionUser };
+
+/** GET /auth/invite/:token */
+export type InviteDetails = {
+  fullName: string;
+  email: string | null;
+  role: Role;
+  schoolName: string | null;
 };

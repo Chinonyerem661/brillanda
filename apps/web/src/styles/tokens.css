@@ -28,4 +28,10 @@
   --color-danger-bg:  #FBEAE8;
 
   /* Grading badges reuse the status set: A/B → success, C → warning, D/F → danger */
+
+  /* Softer structure: space and faint fills instead of heavy lines (DECISIONS.md F-35) */
+  --color-divider:  #F0F0F2;  /* hairline between rows, a step lighter than --color-border */
+  --color-field:    #F4F4F6;  /* resting fill of inputs inside dense grids */
+  --color-hover:    #F7F7F9;  /* row hover and the row being typed in */
+  --shadow-raised:  0 1px 2px rgb(31 32 35 / 0.04), 0 12px 32px -16px rgb(31 32 35 / 0.12);
 }

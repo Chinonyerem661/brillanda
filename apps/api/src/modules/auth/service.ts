@@ -1,4 +1,5 @@
-import type { AuthTokenType, Prisma, Role } from "@prisma/client";
+import type { AuthTokenType, Prisma } from "@prisma/client";
+import type { SessionUser } from "@brillanda/shared-types";
 import { sendEmail } from "../../lib/email";
 import { env } from "../../lib/env";
 import { HttpError } from "../../lib/httpError";
@@ -20,13 +21,8 @@ const userInclude = {
 
 type UserWithSchool = Prisma.UserGetPayload<{ include: typeof userInclude }>;
 
-export type PublicUser = {
-  id: string;
-  fullName: string;
-  email: string | null;
-  role: Role;
-  school: { id: string; name: string; slug: string; logoUrl: string | null } | null;
-};
+/** The response shape is shared with the web app. */
+export type PublicUser = SessionUser;
 
 /** refreshToken is absent when an existing cookie stays valid (the grace path). */
 export type Session = {
