@@ -17,9 +17,13 @@ import { initTrialForm } from "./trialForm";
 
 const INTRO_KEY = "brillanda-seen";
 
+// In development the app runs beside the site on its own port, so "Sign in" works with no setup.
+// A production build with no VITE_APP_URL keeps the plain /login path, for a single-domain deploy.
+const DEV_APP_URL = "http://localhost:5173";
+
 /** Where the app lives, for "Sign in". */
 function wireAppLinks(): void {
-  const appUrl = (import.meta.env?.VITE_APP_URL ?? "").replace(/\/$/, "");
+  const appUrl = (import.meta.env?.VITE_APP_URL || (import.meta.env?.DEV ? DEV_APP_URL : "")).replace(/\/$/, "");
   if (!appUrl) return;
   for (const link of document.querySelectorAll<HTMLAnchorElement>('#signin, [data-app-link]')) {
     link.href = `${appUrl}/login`;

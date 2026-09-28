@@ -1,0 +1,99 @@
+BRILLANDA PORTALS & ACCESS ARCHITECTURE
+
+================================================================================
+1. OVERVIEW & WHO USES IT
+================================================================================
+
+There are four kinds of people using Brillanda, and each one gets their own portal:
+
+Portal        Who                            What They Do
+--------------------------------------------------------------------------------
+School Admin  The principal or school office  Runs the term: sets up classes, adds
+                                             teachers and students, watches scores
+                                             come in, publishes results.
+
+Teacher       Subject teachers               Enter scores for their own classes,
+                                             then mark each class complete.
+
+Parent        Parents or guardians           See their children's results and
+                                             report cards.
+
+Super Admin   Us, the Brillanda team         Look after all the schools on Brillanda.
+
+Everyone uses the same website and the same sign-in page. After signing in, each
+person lands in their own portal automatically.
+
+
+================================================================================
+2. HOW PEOPLE GET IN
+================================================================================
+
+Nobody signs themselves up. There is no "Create an account" button anywhere.
+That's on purpose: a school's results are private, so every account is created
+by someone above you.
+
+- A school joins: The school fills in the "Request a trial" form on our website.
+  We (the Brillanda team) look at it and create the school. The school's admin
+  then gets an email invite.
+
+- The admin invites teachers: The admin types a teacher's name and email, and
+  the teacher gets an email invite.
+
+- Parents get invited when their child is added: When the admin adds students
+  (one by one or from a spreadsheet), each parent's email gets an invite.
+
+- Parents with no email get a printed slip with an access code instead, and
+  sign in with that code.
+
+Rules and Details:
+* An invite link works for 3 days (72 hours). The person clicks it, chooses a
+  password, and they're in. If it runs out, they ask the school to send a new one.
+* Signing in after that: email and password on the sign-in page. If someone
+  forgets their password, the "Forgot password" link emails them a reset link.
+* One email means one account across the platform.
+* If a wrong password or an unknown email is typed, the message is the same
+  either way ("That email and password don't match"). That stops strangers from
+  guessing which emails are real.
+
+
+================================================================================
+3. WHAT EACH PORTAL DOES
+================================================================================
+
+SCHOOL ADMIN PORTAL
+- Sees how far along the term is: how many subjects are in, which classes are
+  ready, and who is behind.
+- Nudges teachers who are behind, and says yes or no when a teacher asks to
+  reopen a finished class.
+- Publishes results for a class when all its subjects are done. This locks the
+  scores and emails every parent.
+- Manages classes, students, staff, the grading scale and term dates.
+
+TEACHER PORTAL
+- Sees only their own classes.
+- Types in scores (first test, second test, exam). Totals and grades work
+  themselves out as they type, and everything saves automatically.
+- Clicks "Mark complete" when a class is finished. To change anything after that,
+  they have to ask the admin to reopen it.
+
+PARENT PORTAL
+- Switches between their children.
+- Sees each child's average, position in class, every subject's score, and the
+  teachers' comments.
+- Opens or downloads the report card.
+- Gets an email the moment new results are published.
+
+
+================================================================================
+4. IS THERE A SUPER ADMIN PORTAL?
+================================================================================
+
+Yes, there is a Super Admin portal.
+
+- Location in Codebase: apps/web/src/portals/super-admin
+- Who uses it: The Brillanda internal team ("Us").
+- What it does:
+  * Looks after all schools registered on Brillanda.
+  * Processes incoming trial requests submitted on the website.
+  * Provisions new school accounts and initial admin credentials.
+  * Monitors platform status, cross-school analytics, and tenant management.

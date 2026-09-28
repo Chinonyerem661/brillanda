@@ -10,6 +10,9 @@
   --sunken: #f0eeea;
   --rule: #e4e1dc;
   --rule-2: #ccc8c1;
+  /* A card's own edge, a shade firmer than a section rule — enough to read as an object
+     without becoming one of the heavy dividers we ruled out (DECISIONS.md F-35). */
+  --edge: #dcd8d1;
   --ink: #16171a;
   --ink-2: #5c5f66;
   --ink-3: #95989e;
@@ -40,7 +43,20 @@
   --e-out: cubic-bezier(0.16, 1, 0.3, 1);
   --e-io: cubic-bezier(0.62, 0.05, 0.01, 0.99);
   --maxw: 1280px;
-  --shadow-card: 0 20px 60px rgba(14, 15, 17, 0.07);
+
+  /*
+   * Three layers rather than one: a hairline contact shadow so the card sits on the page, a
+   * short mid shadow for the object itself, and a wide soft one for the room it is in. A single
+   * broad blur reads as a flat rectangle with a smudge under it.
+   * Warm-tinted (brown, not grey) to match the paper neutrals.
+   */
+  --shadow-sm:
+    0 1px 1px rgba(38, 30, 20, 0.05),
+    0 2px 5px -1px rgba(38, 30, 20, 0.05);
+  --shadow-card:
+    0 1px 1px rgba(38, 30, 20, 0.05),
+    0 3px 7px -2px rgba(38, 30, 20, 0.055),
+    0 16px 34px -14px rgba(38, 30, 20, 0.13);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -65,7 +81,14 @@
     --danger: #d98b85;
     --danger-bg: #241918;
     --danger-border: #3d2725;
-    --shadow-card: 0 20px 60px rgba(0, 0, 0, 0.45);
+    --edge: #33363b;
+    --shadow-sm:
+      0 1px 1px rgba(0, 0, 0, 0.4),
+      0 2px 5px -1px rgba(0, 0, 0, 0.35);
+    --shadow-card:
+      0 1px 1px rgba(0, 0, 0, 0.5),
+      0 3px 8px -2px rgba(0, 0, 0, 0.45),
+      0 18px 40px -14px rgba(0, 0, 0, 0.6);
   }
 }
 
@@ -90,5 +113,12 @@
   --danger: #d98b85;
   --danger-bg: #241918;
   --danger-border: #3d2725;
-  --shadow-card: 0 20px 60px rgba(0, 0, 0, 0.45);
+  --edge: #33363b;
+  --shadow-sm:
+    0 1px 1px rgba(0, 0, 0, 0.4),
+    0 2px 5px -1px rgba(0, 0, 0, 0.35);
+  --shadow-card:
+    0 1px 1px rgba(0, 0, 0, 0.5),
+    0 3px 8px -2px rgba(0, 0, 0, 0.45),
+    0 18px 40px -14px rgba(0, 0, 0, 0.6);
 }

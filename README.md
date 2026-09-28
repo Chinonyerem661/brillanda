@@ -26,6 +26,17 @@ npm run dev:web      # http://localhost:5173
 
 Emails sent in development land in Mailpit: http://localhost:8025
 
+### Front end only
+
+To work on the screens without the API or Docker, one command starts the landing site and the
+app together:
+
+```sh
+npm run dev          # landing site http://localhost:5174, app http://localhost:5173/login
+```
+
+Ctrl+C stops both. They are two separate projects (DECISIONS.md D-10), so each has its own port.
+
 ### Stand-in data
 
 The frontend is being built ahead of parts of the API (see DECISIONS.md D-7). In development,

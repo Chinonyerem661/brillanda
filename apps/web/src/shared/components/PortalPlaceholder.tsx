@@ -3,7 +3,7 @@ import { useAuthStore } from "../auth/authStore";
 import { useLogout } from "../auth/session";
 import { Button } from "./Button";
 
-/** Stands in for a portal that isn't built yet, so every role can still log in and out. */
+/** Stands in for a portal that isn't built yet, so every role can still sign in and out. */
 export function PortalPlaceholder({ portalName }: { portalName: string }) {
   const user = useAuthStore((state) => state.user);
   const logout = useLogout();
@@ -15,7 +15,7 @@ export function PortalPlaceholder({ portalName }: { portalName: string }) {
       description={`The ${portalName} is being built. You'll be able to use it here soon.`}
     >
       <Button variant="secondary" className="w-full" onClick={logout}>
-        Log out
+        Sign out
       </Button>
     </AuthLayout>
   );

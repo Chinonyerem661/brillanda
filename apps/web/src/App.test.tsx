@@ -5,23 +5,23 @@ import { AppRoutes } from "./App";
 import { renderWithProviders, sessionFor } from "./test/render";
 import { server } from "./test/server";
 
-async function logIn(user: ReturnType<typeof renderWithProviders>["user"]) {
+async function signIn(user: ReturnType<typeof renderWithProviders>["user"]) {
   await user.type(await screen.findByLabelText("Email"), "tunde.bakare@demo-academy.local");
   await user.type(screen.getByLabelText("Password"), "correct-horse-battery");
-  await user.click(screen.getByRole("button", { name: "Log in" }));
+  await user.click(screen.getByRole("button", { name: "Sign in" }));
 }
 
 describe("signing in and portals", () => {
-  it("sends a teacher to their classes after logging in", async () => {
+  it("sends a teacher to their classes after signing in", async () => {
     server.use(http.post("/api/v1/auth/login", () => HttpResponse.json(sessionFor("TEACHER"))));
     const { user } = renderWithProviders(<AppRoutes />, { route: "/login" });
 
-    await logIn(user);
+    await signIn(user);
 
     expect(await screen.findByRole("link", { name: /Basic Science/ })).toBeInTheDocument();
   });
 
-  it("shows why a login failed", async () => {
+  it("says the email and password do not match when a sign-in fails", async () => {
     server.use(
       http.post("/api/v1/auth/login", () =>
         HttpResponse.json({ error: "Email or password is incorrect." }, { status: 401 }),
@@ -29,9 +29,9 @@ describe("signing in and portals", () => {
     );
     const { user } = renderWithProviders(<AppRoutes />, { route: "/login" });
 
-    await logIn(user);
+    await signIn(user);
 
-    expect(await screen.findByText("Email or password is incorrect.")).toBeInTheDocument();
+    expect(await screen.findByText("That email and password don't match.")).toBeInTheDocument();
   });
 
   it("lets a parent in with an access code", async () => {
@@ -52,8 +52,8 @@ describe("signing in and portals", () => {
     expect(await screen.findByRole("link", { name: /Basic Science/ })).toBeInTheDocument();
   });
 
-  it("asks visitors who aren't signed in to log in", async () => {
+  it("asks visitors who aren't signed in to sign in", async () => {
     renderWithProviders(<AppRoutes />, { route: "/teacher" });
-    expect(await screen.findByRole("heading", { name: "Log in" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
   });
 });

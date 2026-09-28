@@ -1,15 +1,16 @@
 import { useMutation } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { Link, Navigate, useLocation } from "react-router-dom";
 import type { SessionResponse } from "@brillanda/shared-types";
 import { ApiError } from "../api/client";
-import { Alert } from "../components/Alert";
 import { Button } from "../components/Button";
+import { PasswordField } from "../components/PasswordField";
 import { TextField } from "../components/TextField";
 import { authApi } from "./authApi";
-import { AuthLayout, TextButton } from "./AuthLayout";
+import { AuthLayout, FormError, TextButton } from "./AuthLayout";
 import { useAuthStore } from "./authStore";
 import { destinationAfterLogin } from "./session";
+import { useFocusOnFailure } from "./useFocusOnFailure";
 
 const startSession = (session: SessionResponse) => useAuthStore.getState().setSession(session.accessToken, session.user);
 
@@ -22,6 +23,15 @@ export function generalError(error: unknown): string | null {
 
 export const fieldError = (error: unknown, field: string) =>
   error instanceof ApiError ? error.fields[field]?.[0] : undefined;
+
+/**
+ * A wrong password and an unknown email must read identically: naming which one was wrong tells
+ * a stranger which addresses exist at a school (design/patterns/auth.md §8). The API already
+ * answers both with the same 401; this pins the wording so it can't drift.
+ */
+export const CREDENTIALS_DONT_MATCH = "That email and password don't match.";
+const loginError = (error: unknown) =>
+  error instanceof ApiError && error.status === 401 ? CREDENTIALS_DONT_MATCH : generalError(error);
 
 export function LoginPage() {
   const user = useAuthStore((state) => state.user);
@@ -37,7 +47,7 @@ export function LoginPage() {
         description="Enter the access code your child's school gave you."
         footer={
           <>
-            Have an email and password? <TextButton onClick={() => setMode("email")}>Log in with email</TextButton>
+            Have an email and password? <TextButton onClick={() => setMode("email")}>Sign in with email</TextButton>
           </>
         }
       >
@@ -48,8 +58,8 @@ export function LoginPage() {
 
   return (
     <AuthLayout
-      title="Log in"
-      description="Welcome back. Use the email your school added you with."
+      title="Sign in"
+      description="Use the email your school added you with."
       footer={
         <>
           Parent with an access code? <TextButton onClick={() => setMode("code")}>Use your code</TextButton>
@@ -62,9 +72,11 @@ export function LoginPage() {
 }
 
 function EmailLoginForm() {
+  const formRef = useRef<HTMLFormElement>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const login = useMutation({ mutationFn: () => authApi.login(email, password), onSuccess: startSession });
+  useFocusOnFailure(formRef, login.error);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -72,66 +84,83 @@ function EmailLoginForm() {
   };
 
   return (
-    <form onSubmit={submit} className="space-y-5" noValidate>
-      {generalError(login.error) && <Alert tone="danger">{generalError(login.error)}</Alert>}
-      <TextField
-        label="Email"
-        type="email"
-        autoComplete="email"
-        value={email}
-        onChange={(event) => setEmail(event.target.value)}
-        error={fieldError(login.error, "email")}
-      />
-      <div>
+    <form ref={formRef} onSubmit={submit} noValidate>
+      <div className="space-y-5">
         <TextField
-          label="Password"
-          type="password"
-          autoComplete="current-password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          error={fieldError(login.error, "password")}
+          label="Email"
+          name="email"
+          type="email"
+          autoComplete="email"
+          autoCapitalize="none"
+          spellCheck={false}
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          error={fieldError(login.error, "email")}
         />
-        <Link
-          to="/forgot-password"
-          className="mt-2 inline-block text-sm text-text-secondary underline-offset-4 hover:text-text-primary hover:underline"
-        >
-          Forgot your password?
-        </Link>
+        <div>
+          <PasswordField
+            label="Password"
+            name="password"
+            autoComplete="current-password"
+            data-focus-on-failure
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            error={fieldError(login.error, "password")}
+          />
+          <div className="mt-2 text-right">
+            <Link
+              to="/forgot-password"
+              className="rounded text-sm text-text-secondary underline-offset-4 hover:text-text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+            >
+              Forgot your password?
+            </Link>
+          </div>
+        </div>
       </div>
-      <Button type="submit" className="w-full" loading={login.isPending}>
-        Log in
-      </Button>
+      <div className="mt-6">
+        <FormError message={loginError(login.error)} />
+        <Button type="submit" size="lg" className="w-full" loading={login.isPending}>
+          {login.isPending ? "Signing in…" : "Sign in"}
+        </Button>
+      </div>
     </form>
   );
 }
 
 function AccessCodeForm() {
+  const formRef = useRef<HTMLFormElement>(null);
   const [code, setCode] = useState("");
   const login = useMutation({ mutationFn: () => authApi.loginWithCode(code), onSuccess: startSession });
+  useFocusOnFailure(formRef, login.error);
 
   return (
     <form
+      ref={formRef}
       onSubmit={(event) => {
         event.preventDefault();
         login.mutate();
       }}
-      className="space-y-5"
       noValidate
     >
-      {generalError(login.error) && <Alert tone="danger">{generalError(login.error)}</Alert>}
       <TextField
         label="Access code"
+        name="code"
         autoComplete="off"
         autoCapitalize="characters"
+        autoCorrect="off"
         spellCheck={false}
         placeholder="e.g. K7QM-2XPA-9RTD"
+        data-focus-on-failure
         value={code}
         onChange={(event) => setCode(event.target.value)}
         error={fieldError(login.error, "code")}
       />
-      <Button type="submit" className="w-full" loading={login.isPending}>
-        Continue
-      </Button>
+      <div className="mt-6">
+        <FormError message={generalError(login.error)} />
+        <Button type="submit" size="lg" className="w-full" loading={login.isPending}>
+          {login.isPending ? "Checking…" : "Continue"}
+        </Button>
+      </div>
     </form>
   );
 }

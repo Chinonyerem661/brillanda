@@ -1,25 +1,36 @@
 /* Design tokens — Build Guide §6. The only source of colour in the app. */
 :root {
-  /* Neutral base */
-  --color-bg:            #FAFAFA;
+  /* Paper, not white: a white card has something to sit on. Shared with the marketing site
+     (design/patterns/auth.md §3). */
+  --color-bg:            #FAF9F7;
   --color-surface:       #FFFFFF;
-  --color-border:        #E2E2E5;
-  --color-border-strong: #C7C7CC;
+  --color-sunken:        #F0EEEA;
+  --color-border:        #E4E1DC;  /* section rules, field edges */
+  --color-border-strong: #CCC8C1;  /* hover */
+  --color-edge:          #DCD8D1;  /* a card's own edge, one step firmer than a rule */
 
   /* Text */
-  --color-text-primary:   #1F2023;
-  --color-text-secondary: #6B6F76;
-  --color-text-muted:     #9A9DA3;
+  --color-text-primary:   #16171A;
+  --color-text-secondary: #5C5F66;
+  --color-text-muted:     #95989E;  /* decoration only — never an error or an instruction */
 
-  /* Primary action — graphite, not blue, to stay neutral/brand-agnostic */
-  --color-primary:        #33353A;
-  --color-primary-hover:  #202124;
-  --color-primary-text:   #FFFFFF;
+  /* Primary action — ink, near-black */
+  --color-primary:        #16171A;
+  --color-primary-hover:  #000000;
+  --color-primary-text:   #FAF9F7;
 
-  /* Focus / links — a single restrained slate accent, used sparingly */
-  --color-accent:         #4B5563;
+  /* Ochre: focus rings, the wordmark dot, one rule. Used sparingly. */
+  --color-accent:         #C8913A;
 
-  /* Status (muted, not saturated) — badges and alerts only, never large surfaces */
+  /* The sign-in screens' brand panel: ink, with a step up for cards sitting on it. Text on it
+     is --color-primary-text, or --color-panel-muted for the quieter lines (7:1 on the panel). */
+  --color-panel:          #16171A;
+  --color-panel-raised:   #1F2023;
+  --color-panel-edge:     #2E3034;
+  --color-panel-muted:    #A9ACB2;
+
+  /* Status (muted, not saturated) — badges and alerts only, never large surfaces.
+     Unchanged: a grade badge must mean the same thing everywhere. */
   --color-success:    #3F7A57;
   --color-success-bg: #EAF3EE;
   --color-warning:    #A9760C;
@@ -29,9 +40,16 @@
 
   /* Grading badges reuse the status set: A/B → success, C → warning, D/F → danger */
 
-  /* Softer structure: space and faint fills instead of heavy lines (DECISIONS.md F-35) */
-  --color-divider:  #F0F0F2;  /* hairline between rows, a step lighter than --color-border */
-  --color-field:    #F4F4F6;  /* resting fill of inputs inside dense grids */
-  --color-hover:    #F7F7F9;  /* row hover and the row being typed in */
-  --shadow-raised:  0 1px 2px rgb(31 32 35 / 0.04), 0 12px 32px -16px rgb(31 32 35 / 0.12);
+  /* Softer structure: space and faint fills instead of heavy lines (DECISIONS.md F-35).
+     Warmed to match the paper neutrals; they were cool greys. */
+  --color-divider:  #F0EDE8;  /* hairline between rows, a step lighter than --color-border */
+  --color-field:    #F5F3EF;  /* resting fill of inputs inside dense grids */
+  --color-hover:    #F7F5F2;  /* row hover and the row being typed in */
+
+  /* Three layers, warm-tinted. One wide blur reads as a flat rectangle with a smudge under it;
+     the hairline is what makes the card sit on the page. */
+  --shadow-raised:
+    0 1px 1px rgba(38, 30, 20, 0.05),
+    0 3px 7px -2px rgba(38, 30, 20, 0.055),
+    0 16px 34px -14px rgba(38, 30, 20, 0.13);
 }

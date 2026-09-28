@@ -42,7 +42,7 @@ function TeacherLayout() {
           )}
           <span className="hidden text-sm text-text-secondary md:inline">{user?.fullName}</span>
           <Button variant="ghost" onClick={logout}>
-            Log out
+            Sign out
           </Button>
         </div>
       </header>

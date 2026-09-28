@@ -1,10 +1,15 @@
 import { cx } from "../utils/cx";
 
-export function Spinner({ className = "h-5 w-5" }: { className?: string }) {
+/** `onSolid` draws in the surrounding text colour, for use inside a filled button. */
+export function Spinner({ className = "h-5 w-5", onSolid = false }: { className?: string; onSolid?: boolean }) {
   return (
     <span
       aria-hidden
-      className={cx("inline-block animate-spin rounded-full border-2 border-border-strong border-t-primary", className)}
+      className={cx(
+        "inline-block animate-spin rounded-full border-2",
+        onSolid ? "border-current border-t-transparent" : "border-border-strong border-t-primary",
+        className,
+      )}
     />
   );
 }

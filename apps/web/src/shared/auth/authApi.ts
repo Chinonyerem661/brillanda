@@ -6,7 +6,9 @@ const tokenPath = (token: string) => encodeURIComponent(token);
 
 export const authApi = {
   login: (email: string, password: string) => post<SessionResponse>("/auth/login", { email, password }),
-  loginWithCode: (code: string) => post<SessionResponse>("/auth/access-code", { code }),
+  // The slip is typed by hand: any case, with or without the dashes it was printed with.
+  loginWithCode: (code: string) =>
+    post<SessionResponse>("/auth/access-code", { code: code.replace(/[\s-]/g, "").toUpperCase() }),
   logout: () => post<void>("/auth/logout"),
   forgotPassword: (email: string) => post<{ message: string }>("/auth/forgot-password", { email }),
   resetPassword: (token: string, password: string) => post<void>("/auth/reset-password", { token, password }),
