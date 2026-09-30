@@ -8,6 +8,7 @@ import { Button } from "../../../shared/components/Button";
 import { Kbd } from "../../../shared/components/EmptyState";
 import { ChevronLeft } from "../../../shared/components/icons";
 import { PageSpinner } from "../../../shared/components/Spinner";
+import { levelOfArm, levelStyle } from "../../../shared/theme/levels";
 import { markSheetComplete, teacherKeys, useScoreSheet } from "../api";
 import { RegisterStrip } from "../RegisterStrip";
 import { GradeDistribution } from "./GradeDistribution";
@@ -65,13 +66,22 @@ function ScoreEntry({ sheet }: { sheet: ScoreSheet }) {
     <div className="space-y-8">
       <BackLink hasUnsavedWork={cells.hasUnsavedWork} />
 
-      <header className="space-y-3">
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{sheet.subject.name}</h1>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-text-secondary">
-          <span>
-            {sheet.arm.name}, {sheet.term.name} {sheet.term.sessionName}
-          </span>
-          <EntryStatusBadge status={status} />
+      <header className="flex items-center gap-4">
+        <span
+          aria-hidden
+          className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-lg font-semibold"
+          style={{ ...levelStyle(levelOfArm(sheet.arm.name)), background: "var(--tint)", color: "var(--deep)" }}
+        >
+          {sheet.arm.name.replace(/^\s*(JSS|SS)\s*/i, "")}
+        </span>
+        <div className="min-w-0 space-y-1.5">
+          <h1 className="text-[30px] font-medium leading-tight tracking-[-0.03em] sm:text-[36px]">{sheet.subject.name}</h1>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-text-secondary">
+            <span>
+              {sheet.arm.name}, {sheet.term.name} {sheet.term.sessionName}
+            </span>
+            <EntryStatusBadge status={status} />
+          </div>
         </div>
       </header>
 
@@ -107,8 +117,8 @@ function ScoreEntry({ sheet }: { sheet: ScoreSheet }) {
           <ScoreGrid sheet={sheet} views={cells.views} totals={totals} readOnly={locked} onCommit={cells.commit} />
         </div>
 
-        <aside className="shrink-0 space-y-8 lg:sticky lg:top-8 lg:w-60">
-          <div className="space-y-3">
+        <aside className="shrink-0 space-y-4 lg:sticky lg:top-8 lg:w-64">
+          <div className="space-y-3 rounded-3xl bg-surface p-5 shadow-raised">
             <p className="text-base">
               <span className="font-semibold tabular-nums">
                 {completeTotals.length} of {sheet.rows.length}
@@ -118,10 +128,12 @@ function ScoreEntry({ sheet }: { sheet: ScoreSheet }) {
             <RegisterStrip total={sheet.rows.length} filled={completeTotals.length} />
           </div>
 
-          <GradeDistribution totals={completeTotals} scale={sheet.gradingScale} />
+          <div className="rounded-3xl bg-surface p-5 shadow-raised">
+            <GradeDistribution totals={completeTotals} scale={sheet.gradingScale} />
+          </div>
 
           {!locked && status !== "COMPLETE" && (
-            <div className="space-y-3">
+            <div className="space-y-3 rounded-3xl bg-surface p-5 shadow-raised">
               <Button
                 className="w-full"
                 onClick={() => markComplete.mutate()}

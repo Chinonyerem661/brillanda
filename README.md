@@ -40,8 +40,9 @@ Ctrl+C stops both. They are two separate projects (DECISIONS.md D-10), so each h
 ### Stand-in data
 
 The frontend is being built ahead of parts of the API (see DECISIONS.md D-7). In development,
-login is real, but teachers' classes and scores come from stand-in data (a "Sample data" badge
-shows in the header). Scores you enter there are kept in your browser's local storage. To call
+teachers' classes and scores come from stand-in data (a "Sample data" badge shows in the header),
+and the sign-in page offers one sample account per portal (password `brillanda`), so every portal
+can be opened without the API running. Any other email goes to the real API. Scores you enter there are kept in your browser's local storage. To call
 the real API for everything, set `VITE_USE_MOCKS=false` in `apps/web/.env.local`. Production
 builds never include stand-in data.
 

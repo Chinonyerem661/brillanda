@@ -6,6 +6,7 @@ import { ApiError } from "../api/client";
 import { Button } from "../components/Button";
 import { PasswordField } from "../components/PasswordField";
 import { TextField } from "../components/TextField";
+import { SAMPLE_ACCOUNTS, SAMPLE_PASSWORD } from "../api/sampleAccounts";
 import { authApi } from "./authApi";
 import { AuthLayout, FormError, TextButton } from "./AuthLayout";
 import { useAuthStore } from "./authStore";
@@ -75,12 +76,16 @@ function EmailLoginForm() {
   const formRef = useRef<HTMLFormElement>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const login = useMutation({ mutationFn: () => authApi.login(email, password), onSuccess: startSession });
+  const login = useMutation({
+    mutationFn: (sample?: { email: string; password: string }) =>
+      authApi.login(sample?.email ?? email, sample?.password ?? password),
+    onSuccess: startSession,
+  });
   useFocusOnFailure(formRef, login.error);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    login.mutate();
+    login.mutate(undefined);
   };
 
   return (
@@ -123,6 +128,28 @@ function EmailLoginForm() {
           {login.isPending ? "Signing in…" : "Sign in"}
         </Button>
       </div>
+      {/* Development only, written inline so production builds drop it with the stand-in API (D-7a). */}
+      {import.meta.env.DEV && import.meta.env.VITE_USE_MOCKS !== "false" && (
+        <div className="mt-8 rounded-2xl bg-sunken p-4">
+          <p className="text-sm font-semibold">Sample accounts</p>
+          <p className="mt-0.5 text-xs text-text-secondary">
+            For looking around while the backend is being built. Password: <code>{SAMPLE_PASSWORD}</code>
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {SAMPLE_ACCOUNTS.map((account) => (
+              <Button
+                key={account.email}
+                variant="secondary"
+                size="sm"
+                disabled={login.isPending}
+                onClick={() => login.mutate({ email: account.email, password: SAMPLE_PASSWORD })}
+              >
+                {account.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
     </form>
   );
 }

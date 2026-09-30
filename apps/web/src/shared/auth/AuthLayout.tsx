@@ -1,26 +1,9 @@
-import { useEffect, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Alert } from "../components/Alert";
 import { cx } from "../utils/cx";
 
 // Where the wordmark leads. The marketing site lives at its own address in production.
 const SITE_URL = (import.meta.env.VITE_SITE_URL as string | undefined) || "/";
-
-// Outfit, one weight, and only the glyphs a heading and a school's name can need. Google serves
-// exactly those from `text=`, which keeps the download to a few kilobytes (DECISIONS.md D-14).
-const DISPLAY_GLYPHS = " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'’&.,-";
-const DISPLAY_FONT_URL = `https://fonts.googleapis.com/css2?family=Outfit:wght@500&display=swap&text=${encodeURIComponent(DISPLAY_GLYPHS)}`;
-
-/** Loads the display face the first time a sign-in screen appears, and never for the rest of the app. */
-function useDisplayFont() {
-  useEffect(() => {
-    if (document.querySelector("link[data-display-font]")) return;
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = DISPLAY_FONT_URL;
-    link.dataset.displayFont = "";
-    document.head.appendChild(link);
-  }, []);
-}
 
 type AuthLayoutProps = {
   title: string;
@@ -59,8 +42,8 @@ function BrandPanel() {
       <Wordmark className="self-start focus-visible:ring-offset-panel" />
 
       <div>
-        <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-accent">
-          <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-accent" />
+        <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-panel-accent">
+          <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-panel-accent" />
           For Nigerian schools
         </p>
         <p className="mt-5 max-w-[15em] font-display text-[40px] font-medium leading-[1.1] tracking-tight">
@@ -78,7 +61,7 @@ function BrandPanel() {
             >
               <span
                 aria-hidden
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-panel-edge font-display text-base font-medium text-accent"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-panel-edge font-display text-base font-medium text-panel-accent"
               >
                 {index + 1}
               </span>
@@ -101,8 +84,6 @@ function BrandPanel() {
  * one centred card; from there up it is a brand panel beside the form, and the card drops its box.
  */
 export function AuthLayout({ title, description, children, footer }: AuthLayoutProps) {
-  useDisplayFont();
-
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[5fr_7fr]">
       <BrandPanel />

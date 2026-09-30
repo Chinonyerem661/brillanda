@@ -31,12 +31,12 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
           aria-invalid={error ? true : undefined}
           aria-describedby={message ? messageId : undefined}
           className={cx(
-            "block min-h-[44px] w-full rounded-lg border px-3.5 text-base transition-colors placeholder:text-text-muted",
-            "focus:outline-none focus:ring-1",
+            "block min-h-[46px] w-full rounded-[14px] border-0 px-4 text-base transition-colors placeholder:text-text-muted",
+            "focus:outline-none focus:ring-2",
             trailing ? "pr-[4.5rem]" : false,
             error
-              ? "border-danger bg-danger-bg focus:ring-danger"
-              : "border-border bg-surface hover:border-border-strong focus:border-accent focus:ring-accent",
+              ? "bg-danger-bg ring-2 ring-danger focus:ring-danger"
+              : "bg-sunken hover:bg-hover focus:bg-surface focus:ring-accent",
           )}
           {...props}
         />

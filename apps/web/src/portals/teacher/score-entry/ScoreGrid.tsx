@@ -77,7 +77,7 @@ export function ScoreGrid({ sheet, views, totals, readOnly, onCommit }: ScoreGri
 
   return (
     // Sized to its columns, not the page, so a student's scores sit close together.
-    <div className="max-h-[75vh] w-fit max-w-full overflow-auto rounded-2xl bg-surface shadow-raised">
+    <div className="max-h-[75vh] w-fit max-w-full overflow-auto rounded-3xl bg-surface shadow-raised">
       <table className="border-separate border-spacing-0 text-sm">
         <thead>
           <tr>
@@ -232,12 +232,12 @@ function ScoreInput({ row, component, cell, rowIndex, readOnly, registerInput, o
         onKeyDown={(event) => onKeyDown(event, rowIndex, component.id)}
         onBlur={(event) => onBlur(event, row.studentId, component.id)}
         className={cx(
-          "h-9 w-[4.5rem] rounded-lg border px-2.5 text-right tabular-nums transition-colors focus:outline-none",
+          "h-10 w-[4.5rem] rounded-[11px] border-0 px-2.5 text-right text-[15px] font-medium tabular-nums transition-[background-color,box-shadow] focus:outline-none",
           cell.error
-            ? "border-danger bg-danger-bg"
+            ? "bg-danger-bg ring-2 ring-danger"
             : readOnly
-              ? "border-transparent bg-transparent text-text-secondary"
-              : "border-transparent bg-field hover:border-border focus:border-accent focus:bg-surface focus:ring-1 focus:ring-accent",
+              ? "bg-transparent text-text-secondary"
+              : "bg-field hover:bg-hover focus:bg-surface focus:ring-2 focus:ring-accent",
         )}
       />
       <SaveMark state={cell.save} />

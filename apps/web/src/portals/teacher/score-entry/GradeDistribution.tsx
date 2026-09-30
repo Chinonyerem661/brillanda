@@ -42,7 +42,7 @@ export function GradeDistribution({ totals, scale }: { totals: number[]; scale: 
                 <div
                   className={cx(
                     "w-full rounded-t-[4px] transition-[height] duration-500 ease-out",
-                    count > 0 ? "bg-primary" : "bg-border",
+                    count > 0 ? "bg-chart" : "bg-border",
                   )}
                   style={{ height: count > 0 ? Math.max(4, (count / largest) * PLOT_HEIGHT_PX) : 2 }}
                 />

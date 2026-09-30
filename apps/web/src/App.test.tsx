@@ -18,7 +18,7 @@ describe("signing in and portals", () => {
 
     await signIn(user);
 
-    expect(await screen.findByRole("link", { name: /Basic Science/ })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Your classes" })).toBeInTheDocument();
   });
 
   it("says the email and password do not match when a sign-in fails", async () => {
@@ -49,7 +49,8 @@ describe("signing in and portals", () => {
     server.use(http.post("/api/v1/auth/refresh", () => HttpResponse.json(sessionFor("TEACHER"))));
     renderWithProviders(<AppRoutes />, { route: "/admin" });
 
-    expect(await screen.findByRole("link", { name: /Basic Science/ })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Your classes" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Publishing" })).not.toBeInTheDocument();
   });
 
   it("asks visitors who aren't signed in to sign in", async () => {

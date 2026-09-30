@@ -10,11 +10,17 @@ describe("teacher dashboard", () => {
   it("lists the teacher's classes with their progress", async () => {
     renderWithProviders(<TeacherDashboard />);
 
-    const link = await screen.findByRole("link", { name: /Basic Science.*JSS 1A/ });
-    expect(link).toHaveAttribute("href", `/teacher/score-entry/arm-jss1a/subject-basic-science/${MOCK_TERM.id}`);
-    expect(within(link).getByText("6 of 10 students done")).toBeInTheDocument();
-    expect(within(link).getByText("In progress")).toBeInTheDocument();
-    expect(screen.getAllByRole("link")).toHaveLength(3);
+    const card = await screen.findByRole("link", { name: /Basic Science.*JSS 1A.*students done/ });
+    expect(card).toHaveAttribute("href", `/teacher/score-entry/arm-jss1a/subject-basic-science/${MOCK_TERM.id}`);
+    expect(within(card).getByText("6 of 10 students done")).toBeInTheDocument();
+    expect(within(card).getByText("In progress")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /students done/ })).toHaveLength(3);
+  });
+
+  it("offers to continue the class already in progress", async () => {
+    renderWithProviders(<TeacherDashboard />);
+    const next = await screen.findByRole("link", { name: "Continue Basic Science, JSS 1A" });
+    expect(next).toHaveAttribute("href", `/teacher/score-entry/arm-jss1a/subject-basic-science/${MOCK_TERM.id}`);
   });
 
   it("says how many classes are finished", async () => {

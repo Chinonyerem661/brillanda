@@ -2,13 +2,14 @@ import type { EntryState, GradeBand } from "@brillanda/shared-types";
 import type { ReactNode } from "react";
 import { cx } from "../utils/cx";
 
-export type Tone = "neutral" | "success" | "warning" | "danger";
+export type Tone = "neutral" | "success" | "warning" | "danger" | "info";
 
 const BACKGROUND: Record<Tone, string> = {
-  neutral: "border border-border bg-bg",
+  neutral: "bg-sunken",
   success: "bg-success-bg",
   warning: "bg-warning-bg",
   danger: "bg-danger-bg",
+  info: "bg-info-bg",
 };
 
 const DOT: Record<Tone, string> = {
@@ -16,6 +17,7 @@ const DOT: Record<Tone, string> = {
   success: "bg-success",
   warning: "bg-warning",
   danger: "bg-danger",
+  info: "bg-info",
 };
 
 /** Small status pill: muted tint plus a coloured dot, with readable primary text. */
@@ -24,7 +26,7 @@ export function Badge({ tone = "neutral", children, title }: { tone?: Tone; chil
     <span
       title={title}
       className={cx(
-        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium",
+        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium",
         BACKGROUND[tone],
       )}
     >
