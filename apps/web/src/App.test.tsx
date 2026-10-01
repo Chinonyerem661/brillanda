@@ -42,7 +42,7 @@ describe("signing in and portals", () => {
     await user.type(screen.getByLabelText("Access code"), "k7qm 2xpa 9rtd");
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
-    expect(await screen.findByText(/parent portal is being built/)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /came .* of \d+\./ }, { timeout: 4000 })).toBeInTheDocument();
   });
 
   it("keeps a teacher out of the admin portal", async () => {

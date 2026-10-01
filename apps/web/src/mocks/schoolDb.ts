@@ -6,7 +6,7 @@ import { MOCK_COMPONENTS, MOCK_GRADING_SCALE, MOCK_TERM } from "./db";
 // changes survive a reload. The teacher portal still has its own small sample (mocks/db.ts); the
 // two join up once the real API serves both. Delete this file when the admin endpoints ship.
 
-const STORAGE_KEY = "brillanda:school-v2";
+const STORAGE_KEY = "brillanda:school-v3";
 const DAY = 86_400_000;
 
 /** A score cell: a number, "ABS" for absent, or null for not entered yet. */
@@ -30,7 +30,15 @@ export type SchoolDb = {
   unlocks: UnlockRecord[];
   /** When each arm was published, by arm id. */
   published: Record<string, string>;
+  /** Published terms a parent has opened, as `${studentId}:${termId}` (the parent portal's "New" markers). */
+  parentSeen: string[];
 };
+
+/** The sample parent's children: real students of the sample school, so publishing reaches them. */
+export const SAMPLE_CHILDREN = [
+  { id: "student-chiamaka", fullName: "Chiamaka Okafor", armId: "arm-jss2b", ability: 76 },
+  { id: "student-obinna", fullName: "Obinna Okafor", armId: "arm-ss3a", ability: 66 },
+];
 
 export const sheetId = (armId: string, subjectId: string) => `${armId}:${subjectId}`;
 export const COMPONENTS = MOCK_COMPONENTS;
@@ -94,6 +102,12 @@ function seed(now = Date.now()): SchoolDb {
       students.push({ id, fullName: name, admissionNo: `GC/2026/${String(ai + 1).padStart(2, "0")}${String(k + 1).padStart(2, "0")}`, armId: arm.id, parentStatus: r() < 0.93 ? "LINKED" : "NONE" });
     }
   });
+  for (const child of SAMPLE_CHILDREN) {
+    const s = students.find((x) => x.armId === child.armId)!;
+    delete ability[s.id];
+    Object.assign(s, { id: child.id, fullName: child.fullName, parentStatus: "LINKED" });
+    ability[child.id] = child.ability;
+  }
   students.sort((a, b) => (a.armId === b.armId ? a.fullName.split(" ")[1]!.localeCompare(b.fullName.split(" ")[1]!) : 0));
 
   // Where each sheet stands, then scores to match.
@@ -145,6 +159,7 @@ function seed(now = Date.now()): SchoolDb {
       { id: "unlock-2", armId: "arm-ss2b", subjectId: "subject-english", reason: "One student's exam script turned up after I marked the sheet complete.", requestedById: "t-okon", createdAt: new Date(now - DAY).toISOString(), status: "PENDING" },
     ],
     published: {},
+    parentSeen: [],
   };
 }
 

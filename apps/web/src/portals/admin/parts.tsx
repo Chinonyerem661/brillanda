@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { ordinal, type ArmSummary, type ParentStatus, type PersonRef } from "@brillanda/shared-types";
+import type { ArmSummary, ParentStatus, PersonRef } from "@brillanda/shared-types";
 import { generalError } from "../../shared/auth/LoginPage";
 import { Alert } from "../../shared/components/Alert";
 import { Badge } from "../../shared/components/Badge";
@@ -8,9 +8,10 @@ import { Button } from "../../shared/components/Button";
 import { Icon } from "../../shared/components/Icon";
 import { Dialog } from "../../shared/components/Overlay";
 import { PageSpinner } from "../../shared/components/Spinner";
+import { ReportCardView } from "../../shared/components/ReportCardView";
 import { toast } from "../../shared/components/Toast";
 import { levelStyle } from "../../shared/theme/levels";
-import { formatDate, plural } from "../../shared/utils/time";
+import { plural } from "../../shared/utils/time";
 import { isDone, useReportCard, useSendReminders } from "./api";
 
 /** Where a class stands, for filters and its status line. */
@@ -154,74 +155,7 @@ export function ReportCardDialog({ studentId, onClose }: { studentId: string | n
       ) : card.error ? (
         <Alert tone="danger">{card.error.message}</Alert>
       ) : (
-        <div className="grid gap-5 rounded-[20px] bg-surface p-5 sm:p-7">
-          <div className="flex flex-wrap items-start justify-between gap-4 border-b border-divider pb-4">
-            <div className="flex items-center gap-3">
-              <span aria-hidden className="grid h-12 w-12 place-items-center rounded-2xl bg-primary font-semibold text-primary-text">
-                {card.data.school.name.split(" ").map((w) => w[0]).join("").slice(0, 2)}
-              </span>
-              <div>
-                <p className="text-[19px] font-semibold tracking-[-0.02em]">{card.data.school.name}</p>
-                <p className="text-[12.5px] text-text-secondary">{[card.data.school.motto, card.data.school.address].filter(Boolean).join(". ")}</p>
-              </div>
-            </div>
-            <p className="text-right text-[13px] text-text-secondary">
-              <b className="block text-base font-semibold text-text-primary">Report card</b>
-              {card.data.term.name}, {card.data.term.sessionName}
-            </p>
-          </div>
-          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {[
-              ["Student", card.data.student.fullName],
-              ["Class", card.data.student.armName],
-              ["Average", card.data.average.toFixed(2)],
-              ["Position", card.data.position ? `${ordinal(card.data.position)} of ${card.data.of}` : "—"],
-            ].map(([term, value]) => (
-              <div key={term} className="rounded-2xl bg-sunken p-3">
-                <dt className="text-xs text-text-secondary">{term}</dt>
-                <dd className="m-0 text-lg font-semibold tracking-[-0.02em]">{value}</dd>
-              </div>
-            ))}
-          </dl>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-[13.5px]">
-              <thead>
-                <tr className="text-left text-xs text-text-muted">
-                  <th className="py-1.5 pr-2 font-medium">Subject</th>
-                  {card.data.subjects[0]?.scores.map((s) => (
-                    <th key={s.component} className="px-2 py-1.5 text-center font-medium">
-                      {s.component} ({s.maxScore})
-                    </th>
-                  ))}
-                  <th className="px-2 py-1.5 text-center font-medium">Total</th>
-                  <th className="px-2 py-1.5 text-center font-medium">Grade</th>
-                  <th className="py-1.5 pl-2 font-medium">Remark</th>
-                </tr>
-              </thead>
-              <tbody>
-                {card.data.subjects.map((s) => (
-                  <tr key={s.subjectName} className="border-t border-divider">
-                    <td className="py-2 pr-2">{s.subjectName}</td>
-                    {s.scores.map((c) => (
-                      <td key={c.component} className="px-2 py-2 text-center tabular-nums">{c.isAbsent ? "ABS" : c.value ?? "—"}</td>
-                    ))}
-                    <td className="px-2 py-2 text-center font-semibold tabular-nums">{s.total}</td>
-                    <td className="px-2 py-2 text-center">{s.grade}</td>
-                    <td className="py-2 pl-2 text-text-secondary">{s.remark}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <p className="rounded-2xl bg-sunken p-3.5 text-[13.5px]"><span className="block text-xs text-text-secondary">Class teacher</span>“{card.data.classTeacherRemark}”</p>
-            <p className="rounded-2xl bg-sunken p-3.5 text-[13.5px]"><span className="block text-xs text-text-secondary">Principal</span>“{card.data.principalRemark}”</p>
-          </div>
-          <p className="text-xs text-text-secondary">
-            Grading: {card.data.gradingScale.map((b) => `${b.grade} ${b.minScore} and above`).join(", ")}.
-            {card.data.nextTermBegins ? ` Next term begins ${formatDate(card.data.nextTermBegins)}.` : ""}
-          </p>
-        </div>
+        <ReportCardView card={card.data} />
       )}
     </Dialog>
   );

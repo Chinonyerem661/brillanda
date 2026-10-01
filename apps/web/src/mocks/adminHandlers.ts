@@ -92,7 +92,7 @@ function remarksFor(first: string, average: number) {
   return { classTeacherRemark: `${first} needs more support, especially in the weaker subjects.`, principalRemark: "Let us work together at home and in school to improve next term." };
 }
 
-function reportCard(db: SchoolDb, studentId: string): ReportCard | null {
+export function reportCard(db: SchoolDb, studentId: string): ReportCard | null {
   const student = db.students.find((s) => s.id === studentId);
   if (!student) return null;
   const arm = db.arms.find((a) => a.id === student.armId)!;

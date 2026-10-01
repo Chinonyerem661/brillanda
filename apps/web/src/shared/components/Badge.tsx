@@ -48,6 +48,12 @@ export function EntryStatusBadge({ status }: { status: EntryState }) {
   return <Badge tone={tone}>{label}</Badge>;
 }
 
+/** For a grade letter alone (the parent portal): A and B success, C warning, the rest danger. */
+export function gradeToneFromLetter(grade: string): Tone {
+  const g = grade.trim().toUpperCase()[0];
+  return g === "A" || g === "B" ? "success" : g === "C" ? "warning" : "danger";
+}
+
 /**
  * Grade colours by rank, so they follow each school's own scale: the top two passing grades
  * success, the third warning, the rest and fails danger (A/B, C, D/F on the default scale).
