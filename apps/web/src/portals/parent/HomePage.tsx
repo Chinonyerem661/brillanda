@@ -77,7 +77,7 @@ export function HomePage() {
     ...(notices.data ?? []).map((n, i) =>
       i === 0 ? (
         <div key={n.id} className="grid h-full grid-cols-[110px_minmax(0,1fr)] items-center gap-3.5 rounded-[20px] bg-sunken p-2.5">
-          <img src="/img/family.jpg" alt="" loading="lazy" className="h-[92px] w-full rounded-[14px] object-cover" />
+          <img src="/img/family.webp" alt="" loading="lazy" className="h-[92px] w-full rounded-[14px] object-cover" />
           <div><b className="block font-semibold">{n.title}</b><p className="text-[13px] text-text-secondary">{n.body}</p></div>
         </div>
       ) : (

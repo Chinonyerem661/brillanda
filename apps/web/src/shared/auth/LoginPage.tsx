@@ -128,8 +128,8 @@ function EmailLoginForm() {
           {login.isPending ? "Signing in…" : "Sign in"}
         </Button>
       </div>
-      {/* Development only, written inline so production builds drop it with the stand-in API (D-7a). */}
-      {import.meta.env.DEV && import.meta.env.VITE_USE_MOCKS !== "false" && (
+      {/* Development and demo builds only (D-7a, D-17), written inline so other production builds drop it with the stand-in API. */}
+      {((import.meta.env.DEV && import.meta.env.VITE_USE_MOCKS !== "false") || import.meta.env.VITE_DEMO === "true") && (
         <div className="mt-8 rounded-2xl bg-sunken p-4">
           <p className="text-sm font-semibold">Sample accounts</p>
           <p className="mt-0.5 text-xs text-text-secondary">

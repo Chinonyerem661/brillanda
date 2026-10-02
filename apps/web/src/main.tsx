@@ -4,10 +4,12 @@ import App from "./App";
 import "./styles/tokens.css";
 import "./styles/global.css";
 
-// Stand-in data for endpoints that aren't built yet (DECISIONS.md D-7). The condition is written
-// inline so production builds drop the mock code entirely.
+// Stand-in data for endpoints that aren't built yet (DECISIONS.md D-7), and in a demo build
+// (VITE_DEMO=true, D-17). The condition is written inline so other production builds drop the
+// mock code entirely.
 async function startSampleData() {
-  if (!import.meta.env.DEV || import.meta.env.VITE_USE_MOCKS === "false") return;
+  const sample = (import.meta.env.DEV && import.meta.env.VITE_USE_MOCKS !== "false") || import.meta.env.VITE_DEMO === "true";
+  if (!sample) return;
   const { worker } = await import("./mocks/browser");
   await worker.start({ onUnhandledRequest: "bypass", quiet: true });
 }

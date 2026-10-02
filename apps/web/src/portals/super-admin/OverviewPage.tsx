@@ -99,7 +99,7 @@ export function OverviewPage() {
           </>
         }
         photo={{
-          src: "/img/courtyard.jpg",
+          src: "/img/courtyard.webp",
           alt: "Students crossing a school courtyard",
           caption: (
             <>

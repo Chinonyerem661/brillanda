@@ -96,7 +96,7 @@ export function HomePage() {
           </>
         }
         photo={{
-          src: "/img/teacher.jpg",
+          src: "/img/teacher.webp",
           alt: "A teacher entering scores on a laptop",
           caption: (
             <>

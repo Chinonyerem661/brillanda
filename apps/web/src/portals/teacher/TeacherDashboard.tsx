@@ -55,7 +55,7 @@ export function TeacherDashboard() {
           )
         }
         photo={{
-          src: "/img/classroom.jpg",
+          src: "/img/classroom.webp",
           alt: "Pupils raising their hands in a classroom",
           caption: (
             <>

@@ -44,7 +44,21 @@ teachers' classes and scores come from stand-in data (a "Sample data" badge show
 and the sign-in page offers one sample account per portal (password `brillanda`), so every portal
 can be opened without the API running. Any other email goes to the real API. Scores you enter there are kept in your browser's local storage. To call
 the real API for everything, set `VITE_USE_MOCKS=false` in `apps/web/.env.local`. Production
-builds never include stand-in data.
+builds never include stand-in data, unless built as a demo with `VITE_DEMO=true` (D-17).
+
+### Deploying to Vercel
+
+Make two Vercel projects from this repo, one per front end. Each folder has a `vercel.json`, so
+Vercel picks up the build settings itself; only the root directory and the variables are set by hand.
+
+| Project | Root Directory | Environment variables |
+|---|---|---|
+| The app | `apps/web` | `VITE_DEMO=true` while there is no API (sample data and sample sign-in); `VITE_SITE_URL` = the site's address |
+| The site | `apps/site` | `VITE_APP_URL` = the app's address, so "Sign in" leads there |
+
+Leave "Include files outside the root directory" on (the default): the apps use
+`packages/shared-types`, and Vercel installs the whole workspace from the root `package-lock.json`.
+After changing a variable, redeploy, because the values are baked in at build time.
 
 ## Demo accounts
 

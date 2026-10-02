@@ -8,4 +8,15 @@ export default defineConfig({
     // Same-origin API calls in development; no CORS setup needed.
     proxy: { "/api": "http://localhost:4000" },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // The libraries change far less often than our code, so they get their own long-cached file.
+        manualChunks: {
+          react: ["react", "react-dom", "react-router-dom"],
+          data: ["@tanstack/react-query", "zustand"],
+        },
+      },
+    },
+  },
 });
