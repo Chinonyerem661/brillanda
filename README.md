@@ -48,17 +48,14 @@ builds never include stand-in data, unless built as a demo with `VITE_DEMO=true`
 
 ### Deploying to Vercel
 
-Make two Vercel projects from this repo, one per front end. Each folder has a `vercel.json`, so
-Vercel picks up the build settings itself; only the root directory and the variables are set by hand.
+The site and the app deploy together as **one Vercel project on one address**: the site at `/`,
+the app at every other path (`/login`, `/portal`, `/admin`, …). Import the repo with the
+**Root Directory left at the top** (`./`, not `apps/...`); the root `vercel.json` sets everything
+else, so no environment variables are needed.
 
-| Project | Root Directory | Environment variables |
-|---|---|---|
-| The app | `apps/web` | `VITE_DEMO=true` while there is no API (sample data and sample sign-in); `VITE_SITE_URL` = the site's address |
-| The site | `apps/site` | `VITE_APP_URL` = the app's address, so "Sign in" leads there |
-
-Leave "Include files outside the root directory" on (the default): the apps use
-`packages/shared-types`, and Vercel installs the whole workspace from the root `package-lock.json`.
-After changing a variable, redeploy, because the values are baked in at build time.
+`npm run build:vercel` (also works locally) builds both and combines them in `dist/`. The app is
+built as a demo, with sample data and sample sign-in, until `VITE_DEMO=false` is set in the Vercel
+project (do that once the API is deployed, then redeploy).
 
 ## Demo accounts
 
