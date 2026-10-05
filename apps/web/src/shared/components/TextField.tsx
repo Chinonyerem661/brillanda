@@ -1,4 +1,4 @@
-import { forwardRef, useId, type InputHTMLAttributes, type ReactNode } from "react";
+import { forwardRef, useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
 import { cx } from "../utils/cx";
 
 type TextFieldProps = InputHTMLAttributes<HTMLInputElement> & {
@@ -50,3 +50,55 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
     </div>
   );
 });
+
+const fieldClass = (error?: string) =>
+  cx(
+    "block w-full rounded-[14px] border-0 px-4 text-base transition-colors placeholder:text-text-muted focus:outline-none focus:ring-2",
+    error ? "bg-danger-bg ring-2 ring-danger focus:ring-danger" : "bg-sunken hover:bg-hover focus:bg-surface focus:ring-accent",
+  );
+
+/** A labelled field around any control, with the same hint and error line as TextField. */
+function Field({ label, error, hint, className, children }: { label: string; error?: string; hint?: ReactNode; className?: string; children: (ids: { id: string; describedBy?: string }) => ReactNode }) {
+  const id = useId();
+  const messageId = `${id}-message`;
+  const message = error ?? hint;
+  return (
+    <div className={className}>
+      <label htmlFor={id} className="mb-1.5 block text-sm font-medium">
+        {label}
+      </label>
+      {children({ id, describedBy: message ? messageId : undefined })}
+      {message && (
+        <p id={messageId} className={cx("mt-1.5 text-sm", error ? "text-danger" : "text-text-secondary")}>
+          {message}
+        </p>
+      )}
+    </div>
+  );
+}
+
+type SelectFieldProps = SelectHTMLAttributes<HTMLSelectElement> & { label: string; error?: string; hint?: ReactNode };
+
+export function SelectField({ label, error, hint, className, children, ...props }: SelectFieldProps) {
+  return (
+    <Field label={label} error={error} hint={hint} className={className}>
+      {({ id, describedBy }) => (
+        <select id={id} aria-invalid={error ? true : undefined} aria-describedby={describedBy} className={cx(fieldClass(error), "min-h-[46px]")} {...props}>
+          {children}
+        </select>
+      )}
+    </Field>
+  );
+}
+
+type TextAreaFieldProps = TextareaHTMLAttributes<HTMLTextAreaElement> & { label: string; error?: string; hint?: ReactNode };
+
+export function TextAreaField({ label, error, hint, className, ...props }: TextAreaFieldProps) {
+  return (
+    <Field label={label} error={error} hint={hint} className={className}>
+      {({ id, describedBy }) => (
+        <textarea id={id} aria-invalid={error ? true : undefined} aria-describedby={describedBy} className={cx(fieldClass(error), "py-3 leading-relaxed")} {...props} />
+      )}
+    </Field>
+  );
+}

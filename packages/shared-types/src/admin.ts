@@ -1,6 +1,6 @@
 import type { GradeBand } from "./grading";
 import type { EntryState, PublishState } from "./index";
-import type { ScoreSheet, TermRef } from "./teacher";
+import type { ScoreSheet, ScoreSheetComponent, TermRef } from "./teacher";
 
 // API contract for the school admin portal (DECISIONS.md F-37). The web app is built against
 // these shapes with stand-in data first; the API must return exactly these when it ships.
@@ -117,11 +117,52 @@ export type StaffMember = {
 /** POST /users/invite (built in the API, F-26). */
 export type InviteStaffRequest = { fullName: string; email: string; role: "TEACHER" | "SCHOOL_ADMIN"; phone?: string };
 
-/** GET and PUT /admin/school */
-export type SchoolProfile = { name: string; motto: string | null; address: string | null };
+/**
+ * GET and PUT /admin/school. `logoUrl` is read-only here: it changes through
+ * POST /admin/school/logo (multipart, field `logo`; returns SchoolLogoResponse) and DELETE /admin/school/logo.
+ */
+export type SchoolProfile = { name: string; motto: string | null; address: string | null; logoUrl?: string | null };
+export type SchoolLogoResponse = { logoUrl: string | null };
 
 /** GET and PUT /admin/term */
 export type TermDates = { startsOn: string; endsOn: string; scoresDueOn: string; nextTermBegins: string | null };
 
 /** GET and PUT /admin/grading-scale (scoped to the session, F-2). */
 export type GradingScaleBody = { bands: GradeBand[] };
+
+// ---- Getting a new school set up (Onboarding Flow §3, DECISIONS.md F-39) ----
+// The Brillanda team creates the school with working defaults (F-36); nothing here blocks using it.
+
+/** What the remaining setup checklist can hold, in the order it is shown. */
+export type SetupItemId = "IMPORT_STUDENTS" | "INVITE_TEACHERS" | "CHECK_GRADING" | "UPLOAD_LOGO" | "SET_TERM";
+
+/** GET /admin/setup */
+export type SetupStatus = {
+  /** False until the admin has tried one class or skipped ahead; the portal opens the first run until then. */
+  firstRunDone: boolean;
+  /** The defaults the school was created with, for the welcome screen. */
+  defaults: {
+    sessionName: string;
+    terms: string[];
+    classes: string[];
+    arms: string[];
+    subjects: string[];
+    components: ScoreSheetComponent[];
+    gradingScale: GradeBand[];
+  };
+  checklist: { id: SetupItemId; done: boolean }[];
+  /** The admin hid the checklist before finishing it. */
+  checklistHidden: boolean;
+};
+
+/**
+ * POST /admin/setup/try-class: adds a few students to one arm, with placeholder admission numbers
+ * the school corrects later, and returns the sheet to try. Scores then save through
+ * PUT /scores/:studentId/:componentId like any other sheet; a school admin may enter scores for
+ * their own school.
+ */
+export type TryClassRequest = { armId: string; subjectId: string; studentNames: string[] };
+export type TryClassResponse = { sheet: ScoreSheet };
+
+/** POST /admin/setup/first-run: the admin finished trying a class, or skipped it. No body. */
+/** POST /admin/setup/checklist/hide and /show. No body. */

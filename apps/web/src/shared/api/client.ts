@@ -53,16 +53,18 @@ export function refreshSession(): Promise<boolean> {
 type RequestOptions = { method?: string; body?: unknown };
 
 export async function api<T>(path: string, { method = "GET", body }: RequestOptions = {}): Promise<T> {
+  // A file upload goes as it is; the browser sets its multipart Content-Type.
+  const isForm = body instanceof FormData;
   const send = async (token: string | null) => {
     try {
       return await fetch(toUrl(path), {
         method,
         credentials: "same-origin",
         headers: {
-          ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+          ...(body !== undefined && !isForm ? { "Content-Type": "application/json" } : {}),
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: body === undefined ? undefined : JSON.stringify(body),
+        body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
       });
     } catch {
       throw new ApiError(0, OFFLINE_MESSAGE);

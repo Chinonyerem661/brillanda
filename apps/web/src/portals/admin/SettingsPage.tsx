@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
+import { useSearchParams } from "react-router-dom";
 import { resolveGrade, type GradeBand, type SchoolProfile, type TermDates } from "@brillanda/shared-types";
 import { fieldError, generalError } from "../../shared/auth/LoginPage";
 import { Alert } from "../../shared/components/Alert";
@@ -12,12 +13,17 @@ import { TextField } from "../../shared/components/TextField";
 import { toast } from "../../shared/components/Toast";
 import { useLook } from "../../shared/theme/useLook";
 import { cx } from "../../shared/utils/cx";
-import { useGradingScale, useSaveScale, useSaveSchool, useSaveTerm, useSchoolProfile, useTermDates } from "./api";
+import { useGradingScale, useRemoveLogo, useSaveScale, useSaveSchool, useSaveTerm, useSchoolProfile, useTermDates, useUploadLogo } from "./api";
 
 type Tab = "SCHOOL" | "SCALE" | "TERM" | "LOOK";
+const TABS: Tab[] = ["SCHOOL", "SCALE", "TERM", "LOOK"];
 
 export function SettingsPage() {
-  const [tab, setTab] = useState<Tab>("SCHOOL");
+  // The tab lives in the address (?tab=scale), so the setup checklist can link straight to one.
+  const [params, setParams] = useSearchParams();
+  const asked = params.get("tab")?.toUpperCase() as Tab | undefined;
+  const tab: Tab = asked && TABS.includes(asked) ? asked : "SCHOOL";
+  const setTab = (next: Tab) => setParams({ tab: next.toLowerCase() }, { replace: true });
   return (
     <>
       <PageHeader title="Settings" />
@@ -38,7 +44,49 @@ function SchoolTab() {
   const profile = useSchoolProfile();
   if (profile.isPending) return <PageSpinner />;
   if (profile.error) return <Alert tone="danger">{profile.error.message}</Alert>;
-  return <SchoolForm initial={profile.data} />;
+  return (
+    <div className="grid gap-4">
+      <LogoCard logoUrl={profile.data.logoUrl ?? null} name={profile.data.name} />
+      <SchoolForm initial={profile.data} />
+    </div>
+  );
+}
+
+function LogoCard({ logoUrl, name }: { logoUrl: string | null; name: string }) {
+  const upload = useUploadLogo();
+  const remove = useRemoveLogo();
+  const input = useRef<HTMLInputElement>(null);
+  const error = fieldError(upload.error, "logo") ?? generalError(upload.error) ?? generalError(remove.error);
+  const initials = name.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+  return (
+    <Card title="Logo" description="Printed at the top of report cards. A square PNG, JPG, WebP or SVG under 1 MB works best.">
+      <div className="flex flex-wrap items-center gap-4">
+        <span className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-2xl bg-sunken text-xl font-semibold text-text-secondary">
+          {logoUrl ? <img src={logoUrl} alt={`${name} logo`} className="h-full w-full object-contain p-1.5" /> : <span aria-hidden>{initials}</span>}
+        </span>
+        <div className="flex flex-wrap gap-2">
+          <input
+            ref={input}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+            className="sr-only"
+            aria-label="Choose a logo image"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) upload.mutate(file, { onSuccess: () => toast("Logo saved") });
+              e.target.value = "";
+            }}
+          />
+          <Button variant={logoUrl ? "secondary" : "primary"} loading={upload.isPending} onClick={() => input.current?.click()}>
+            <Icon name="upload" className="h-4 w-4" />
+            {logoUrl ? "Change logo" : "Upload logo"}
+          </Button>
+          {logoUrl && <Button variant="danger-quiet" loading={remove.isPending} onClick={() => remove.mutate(undefined, { onSuccess: () => toast("Logo removed") })}>Remove</Button>}
+        </div>
+      </div>
+      {error && <div className="mt-3"><Alert tone="danger">{error}</Alert></div>}
+    </Card>
+  );
 }
 
 function SchoolForm({ initial }: { initial: SchoolProfile }) {

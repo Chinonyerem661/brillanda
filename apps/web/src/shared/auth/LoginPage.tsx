@@ -141,6 +141,7 @@ function EmailLoginForm() {
                 key={account.email}
                 variant="secondary"
                 size="sm"
+                className={account.newSchool ? "col-span-2" : undefined}
                 disabled={login.isPending}
                 onClick={() => login.mutate({ email: account.email, password: SAMPLE_PASSWORD })}
               >

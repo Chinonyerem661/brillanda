@@ -5,8 +5,15 @@ import { MOCK_COMPONENTS, MOCK_GRADING_SCALE, MOCK_TERM } from "./db";
 // and 9 subjects, generated from a fixed seed so every run looks the same. Kept in localStorage so
 // changes survive a reload. The teacher portal still has its own small sample (mocks/db.ts); the
 // two join up once the real API serves both. Delete this file when the admin endpoints ship.
+//
+// A second school, Sunrise Academy, has only the defaults a new school is created with, so the
+// first run and setup checklist can be tried (F-39). Requests go to it when the "New school"
+// sample account is signed in.
 
-const STORAGE_KEY = "brillanda:school-v3";
+export type SchoolKey = "greenfield" | "sunrise";
+const STORAGE_KEYS: Record<SchoolKey, string> = { greenfield: "brillanda:school-v3", sunrise: "brillanda:new-school-v1" };
+/** Part of the access token the "New school" sample account signs in with. */
+export const NEW_SCHOOL_TOKEN_MARK = "new-school";
 const DAY = 86_400_000;
 
 /** A score cell: a number, "ABS" for absent, or null for not entered yet. */
@@ -15,7 +22,12 @@ export type Sheet = { status: EntryState; scores: Record<string, [Cell, Cell, Ce
 export type StaffRecord = { id: string; fullName: string; email: string; role: "TEACHER" | "SCHOOL_ADMIN"; status: "ACTIVE" | "INVITED" };
 export type UnlockRecord = { id: string; armId: string; subjectId: string; reason: string; requestedById: string; createdAt: string; status: "PENDING" | "APPROVED" | "REJECTED" };
 
+/** Where the school is in getting set up. `imported` is set by the student import (step 4). */
+export type SetupState = { firstRunDone: boolean; checklistHidden: boolean; gradingChecked: boolean; termSet: boolean; imported: boolean };
+
 export type SchoolDb = {
+  id: SchoolKey;
+  setup: SetupState;
   profile: SchoolProfile;
   term: TermDates;
   scale: GradeBand[];
@@ -144,7 +156,9 @@ function seed(now = Date.now()): SchoolDb {
   }
 
   return {
-    profile: { name: "Greenfield College", motto: "Knowledge, character, service", address: "Lekki, Lagos" },
+    id: "greenfield",
+    setup: SETUP_FINISHED,
+    profile: { name: "Greenfield College", motto: "Knowledge, character, service", address: "Lekki, Lagos", logoUrl: null },
     term: { startsOn: iso(now - 74 * DAY), endsOn: iso(now + 16 * DAY), scoresDueOn: iso(now + 9 * DAY), nextTermBegins: iso(now + 104 * DAY) },
     scale: MOCK_GRADING_SCALE,
     classes,
@@ -163,29 +177,76 @@ function seed(now = Date.now()): SchoolDb {
   };
 }
 
-export function loadSchool(): SchoolDb {
+/** An established school has nothing left to set up. */
+const SETUP_FINISHED: SetupState = { firstRunDone: true, checklistHidden: true, gradingChecked: true, termSet: true, imported: true };
+
+/** The defaults every new school is created with (Onboarding Flow §3, step 2). */
+export const NEW_SCHOOL_SUBJECTS = [
+  "Mathematics", "English Language", "Basic Science", "Basic Technology", "Social Studies",
+  "Civic Education", "Computer Studies", "Agricultural Science", "Physical and Health Education",
+];
+export const NEW_SCHOOL_TERMS = ["First Term", "Second Term", "Third Term"];
+
+/** Sunrise Academy, the day the Brillanda team created it: defaults only, no students, no teachers. */
+function seedNewSchool(now = Date.now()): SchoolDb {
+  const iso = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+  const classes = ["JSS 1", "JSS 2", "JSS 3", "SS 1", "SS 2", "SS 3"].map((name, order) => ({ id: `class-${order + 1}`, name, order }));
+  const arms = classes.flatMap((cls) =>
+    ["A", "B"].map((letter) => ({ id: `arm-${cls.name.replace(" ", "").toLowerCase()}${letter.toLowerCase()}`, name: `${cls.name}${letter}`, classId: cls.id, formTeacherId: "" })),
+  );
+  const subjects = NEW_SCHOOL_SUBJECTS.map((name) => ({ id: `subject-${name.toLowerCase().replace(/[^a-z]+/g, "-")}`, name }));
+  const sheets: Record<string, Sheet> = {};
+  for (const arm of arms) for (const s of subjects) sheets[sheetId(arm.id, s.id)] = { status: "NOT_STARTED", scores: {}, remindedAt: null };
+  return {
+    id: "sunrise",
+    setup: { firstRunDone: false, checklistHidden: false, gradingChecked: false, termSet: false, imported: false },
+    profile: { name: "Sunrise Academy", motto: null, address: null, logoUrl: null },
+    term: { startsOn: iso(now - 7 * DAY), endsOn: iso(now + 83 * DAY), scoresDueOn: iso(now + 76 * DAY), nextTermBegins: null },
+    scale: MOCK_GRADING_SCALE,
+    classes,
+    arms,
+    subjects,
+    staff: [{ id: "a-nwankwo", fullName: "Adaobi Nwankwo", email: "admin@sunrise.sample", role: "SCHOOL_ADMIN", status: "ACTIVE" }],
+    teacherOf: {},
+    students: [],
+    sheets,
+    unlocks: [],
+    published: {},
+    parentSeen: [],
+  };
+}
+
+/** The school a request is for: the new school when its sample account is signed in, else Greenfield. */
+export function schoolOf(request?: Request): SchoolKey {
+  return request?.headers.get("authorization")?.includes(NEW_SCHOOL_TOKEN_MARK) ? "sunrise" : "greenfield";
+}
+
+export function loadSchool(request?: Request): SchoolDb {
+  const key = schoolOf(request);
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) return JSON.parse(saved) as SchoolDb;
+    const saved = localStorage.getItem(STORAGE_KEYS[key]);
+    // Saved before schools had an id or setup state: an established school.
+    if (saved) return { id: key, setup: SETUP_FINISHED, ...(JSON.parse(saved) as Partial<SchoolDb>) } as SchoolDb;
   } catch {
     // Unreadable or blocked storage: start again from the seed.
   }
-  const fresh = seed();
+  const fresh = key === "sunrise" ? seedNewSchool() : seed();
   saveSchool(fresh);
   return fresh;
 }
 
 export function saveSchool(db: SchoolDb) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+    localStorage.setItem(STORAGE_KEYS[db.id ?? "greenfield"], JSON.stringify(db));
   } catch {
     // Private browsing: changes last until the tab closes.
   }
 }
 
-export function resetSchool() {
+/** Forgets saved changes; `school` limits it to one school. */
+export function resetSchool(school?: SchoolKey) {
   try {
-    localStorage.removeItem(STORAGE_KEY);
+    for (const key of school ? [school] : (Object.keys(STORAGE_KEYS) as SchoolKey[])) localStorage.removeItem(STORAGE_KEYS[key]);
   } catch {
     // Nothing saved.
   }

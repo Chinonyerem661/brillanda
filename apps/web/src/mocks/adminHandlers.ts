@@ -122,18 +122,40 @@ export function reportCard(db: SchoolDb, studentId: string): ReportCard | null {
   };
 }
 
+/** One subject in one arm, as a score sheet. */
+export function adminSheet(db: SchoolDb, armId: string, subjectId: string): AdminSheet | null {
+  const sheet = db.sheets[sheetId(armId, subjectId)];
+  const arm = db.arms.find((a) => a.id === armId);
+  const subject = db.subjects.find((s) => s.id === subjectId);
+  if (!sheet || !arm || !subject) return null;
+  return {
+    arm: { id: arm.id, name: arm.name, className: classOf(db, arm.id).name },
+    subject,
+    term: TERM,
+    status: sheet.status,
+    components: COMPONENTS,
+    gradingScale: db.scale,
+    rows: studentsIn(db, armId).map((st) => ({
+      studentId: st.id,
+      admissionNo: st.admissionNo,
+      fullName: st.fullName,
+      scores: Object.fromEntries(Object.entries(cellsOf(sheet.scores[st.id] ?? [null, null, null])).filter(([, v]) => v)) as Record<string, CellValue>,
+    })),
+  };
+}
+
 export const adminHandlers = [
-  http.get("/api/v1/admin/overview", async () => {
+  http.get("/api/v1/admin/overview", async ({ request }) => {
     await delay();
-    const db = loadSchool();
+    const db = loadSchool(request);
     const statuses = Object.values(db.sheets).map((s) => s.status);
     const complete = statuses.filter(isDone).length;
     const behind = new Map<string, number>();
     for (const arm of db.arms) for (const s of db.subjects) {
       const p = sheetProgress(db, arm.id, s.id);
       if (!isDone(p.sheet.status) && p.complete / Math.max(1, p.total) < 0.5) {
-        const t = db.teacherOf[sheetId(arm.id, s.id)]!;
-        behind.set(t, (behind.get(t) ?? 0) + 1);
+        const t = db.teacherOf[sheetId(arm.id, s.id)];
+        if (t) behind.set(t, (behind.get(t) ?? 0) + 1);
       }
     }
     const started = new Date(db.term.startsOn).getTime();
@@ -154,15 +176,15 @@ export const adminHandlers = [
     });
   }),
 
-  http.get("/api/v1/admin/arms", async () => {
+  http.get("/api/v1/admin/arms", async ({ request }) => {
     await delay();
-    const db = loadSchool();
+    const db = loadSchool(request);
     return HttpResponse.json<ArmSummary[]>(db.arms.map((a) => armSummary(db, a.id)));
   }),
 
-  http.get("/api/v1/admin/arms/:armId", async ({ params }) => {
+  http.get("/api/v1/admin/arms/:armId", async ({ params, request }) => {
     await delay();
-    const db = loadSchool();
+    const db = loadSchool(request);
     if (!db.arms.some((a) => a.id === params.armId)) return notFound();
     const armId = params.armId as string;
     const results = armResults(db, armId);
@@ -197,30 +219,13 @@ export const adminHandlers = [
     const url = new URL(request.url);
     const armId = url.searchParams.get("armId") ?? "";
     const subjectId = url.searchParams.get("subjectId") ?? "";
-    const db = loadSchool();
-    const sheet = db.sheets[sheetId(armId, subjectId)];
-    const arm = db.arms.find((a) => a.id === armId);
-    const subject = db.subjects.find((s) => s.id === subjectId);
-    if (!sheet || !arm || !subject) return notFound();
-    return HttpResponse.json<AdminSheet>({
-      arm: { id: arm.id, name: arm.name, className: classOf(db, arm.id).name },
-      subject,
-      term: TERM,
-      status: sheet.status,
-      components: COMPONENTS,
-      gradingScale: db.scale,
-      rows: studentsIn(db, armId).map((st) => ({
-        studentId: st.id,
-        admissionNo: st.admissionNo,
-        fullName: st.fullName,
-        scores: Object.fromEntries(Object.entries(cellsOf(sheet.scores[st.id] ?? [null, null, null])).filter(([, v]) => v)) as Record<string, CellValue>,
-      })),
-    });
+    const sheet = adminSheet(loadSchool(request), armId, subjectId);
+    return sheet ? HttpResponse.json<AdminSheet>(sheet) : notFound();
   }),
 
-  http.get("/api/v1/admin/unlock-requests", async () => {
+  http.get("/api/v1/admin/unlock-requests", async ({ request }) => {
     await delay();
-    const db = loadSchool();
+    const db = loadSchool(request);
     const pending = db.unlocks
       .filter((u) => u.status === "PENDING")
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -237,9 +242,9 @@ export const adminHandlers = [
     return HttpResponse.json(pending);
   }),
 
-  http.post("/api/v1/admin/unlock-requests/:id/:decision", async ({ params }) => {
+  http.post("/api/v1/admin/unlock-requests/:id/:decision", async ({ params, request }) => {
     await delay();
-    const db = loadSchool();
+    const db = loadSchool(request);
     const unlock = db.unlocks.find((u) => u.id === params.id);
     if (!unlock || !["approve", "decline"].includes(params.decision as string)) return notFound();
     if (unlock.status !== "PENDING") return HttpResponse.json({ error: "This request has already been dealt with." }, { status: 409 });
@@ -252,7 +257,7 @@ export const adminHandlers = [
   http.post("/api/v1/admin/reminders", async ({ request }) => {
     await delay();
     const { teacherIds } = (await request.json()) as SendRemindersRequest;
-    const db = loadSchool();
+    const db = loadSchool(request);
     const now = new Date().toISOString();
     for (const [key, teacher] of Object.entries(db.teacherOf)) {
       if (teacherIds.includes(teacher) && !isDone(db.sheets[key]!.status)) db.sheets[key]!.remindedAt = now;
@@ -264,7 +269,7 @@ export const adminHandlers = [
   http.post("/api/v1/admin/publish", async ({ request }) => {
     await delay(700);
     const { armIds } = (await request.json()) as PublishRequest;
-    const db = loadSchool();
+    const db = loadSchool(request);
     const notReady = armIds.filter((id) => publishStateOf(db, id) !== "COMPLETE");
     if (notReady.length) return HttpResponse.json({ error: "Some of these classes still have subjects to finish." }, { status: 409 });
     const now = new Date().toISOString();
@@ -279,15 +284,15 @@ export const adminHandlers = [
     return HttpResponse.json<PublishResponse>({ published: armIds, parentsEmailed, printedSlips });
   }),
 
-  http.get("/api/v1/admin/report-cards/:studentId", async ({ params }) => {
+  http.get("/api/v1/admin/report-cards/:studentId", async ({ params, request }) => {
     await delay();
-    const card = reportCard(loadSchool(), params.studentId as string);
+    const card = reportCard(loadSchool(request), params.studentId as string);
     return card ? HttpResponse.json<ReportCard>(card) : notFound();
   }),
 
-  http.get("/api/v1/admin/students", async () => {
+  http.get("/api/v1/admin/students", async ({ request }) => {
     await delay();
-    const db = loadSchool();
+    const db = loadSchool(request);
     return HttpResponse.json<AdminStudent[]>(
       db.students.map((st) => {
         const arm = db.arms.find((a) => a.id === st.armId)!;
@@ -300,7 +305,7 @@ export const adminHandlers = [
     await delay();
     const body = (await request.json()) as InviteParentRequest;
     if (!EMAIL.test(body.email?.trim() ?? "")) return invalid({ email: "Check this email address. It should look like name@example.com." });
-    const db = loadSchool();
+    const db = loadSchool(request);
     const student = db.students.find((s) => s.id === params.id);
     if (!student) return notFound();
     student.parentStatus = "INVITED";
@@ -308,9 +313,9 @@ export const adminHandlers = [
     return new HttpResponse(null, { status: 204 });
   }),
 
-  http.get("/api/v1/admin/staff", async () => {
+  http.get("/api/v1/admin/staff", async ({ request }) => {
     await delay();
-    const db = loadSchool();
+    const db = loadSchool(request);
     return HttpResponse.json<StaffMember[]>(
       db.staff.map((member) => {
         const mine = Object.entries(db.teacherOf).filter(([, t]) => t === member.id).map(([key]) => key);
@@ -332,7 +337,7 @@ export const adminHandlers = [
     if ((body.fullName?.trim().length ?? 0) < 2) errors.fullName = "Enter the person's full name";
     if (!EMAIL.test(body.email?.trim() ?? "")) errors.email = "Check this email address. It should look like name@greenfield.sch.ng.";
     if (Object.keys(errors).length) return invalid(errors);
-    const db = loadSchool();
+    const db = loadSchool(request);
     const email = body.email.trim().toLowerCase();
     const existing = db.staff.find((s) => s.email === email);
     if (existing && existing.status === "ACTIVE") return invalid({ email: "Someone with this email is already on your staff." });
@@ -341,45 +346,47 @@ export const adminHandlers = [
     return HttpResponse.json({ resent: !!existing }, { status: existing ? 200 : 201 });
   }),
 
-  http.get("/api/v1/admin/school", async () => {
+  http.get("/api/v1/admin/school", async ({ request }) => {
     await delay();
-    return HttpResponse.json<SchoolProfile>(loadSchool().profile);
+    return HttpResponse.json<SchoolProfile>(loadSchool(request).profile);
   }),
   http.put("/api/v1/admin/school", async ({ request }) => {
     await delay();
     const body = (await request.json()) as SchoolProfile;
     if (!body.name?.trim()) return invalid({ name: "Enter the school's name." });
-    const db = loadSchool();
-    db.profile = { name: body.name.trim(), motto: body.motto?.trim() || null, address: body.address?.trim() || null };
+    const db = loadSchool(request);
+    db.profile = { ...db.profile, name: body.name.trim(), motto: body.motto?.trim() || null, address: body.address?.trim() || null };
     saveSchool(db);
     return HttpResponse.json<SchoolProfile>(db.profile);
   }),
 
-  http.get("/api/v1/admin/term", async () => {
+  http.get("/api/v1/admin/term", async ({ request }) => {
     await delay();
-    return HttpResponse.json<TermDates>(loadSchool().term);
+    return HttpResponse.json<TermDates>(loadSchool(request).term);
   }),
   http.put("/api/v1/admin/term", async ({ request }) => {
     await delay();
     const body = (await request.json()) as TermDates;
     if (body.endsOn <= body.startsOn) return invalid({ endsOn: "The term has to end after it starts." });
     if (body.scoresDueOn < body.startsOn || body.scoresDueOn > body.endsOn) return invalid({ scoresDueOn: "Pick a day inside the term." });
-    const db = loadSchool();
+    const db = loadSchool(request);
     db.term = body;
+    db.setup.termSet = true;
     saveSchool(db);
     return HttpResponse.json<TermDates>(db.term);
   }),
 
-  http.get("/api/v1/admin/grading-scale", async () => {
+  http.get("/api/v1/admin/grading-scale", async ({ request }) => {
     await delay();
-    return HttpResponse.json<GradingScaleBody>({ bands: loadSchool().scale });
+    return HttpResponse.json<GradingScaleBody>({ bands: loadSchool(request).scale });
   }),
   http.put("/api/v1/admin/grading-scale", async ({ request }) => {
     await delay();
     const { bands } = (await request.json()) as GradingScaleBody;
     if (!bands.some((b) => b.minScore === 0)) return HttpResponse.json({ error: "Add a grade that starts at 0, so every total gets a grade." }, { status: 400 });
-    const db = loadSchool();
+    const db = loadSchool(request);
     db.scale = [...bands].sort((a, b) => b.minScore - a.minScore);
+    db.setup.gradingChecked = true;
     saveSchool(db);
     return HttpResponse.json<GradingScaleBody>({ bands: db.scale });
   }),

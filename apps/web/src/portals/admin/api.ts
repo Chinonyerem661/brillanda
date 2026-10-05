@@ -11,9 +11,13 @@ import type {
   PendingUnlockRequest,
   PublishResponse,
   ReportCard,
+  SchoolLogoResponse,
   SchoolProfile,
+  SetupStatus,
   StaffMember,
   TermDates,
+  TryClassRequest,
+  TryClassResponse,
 } from "@brillanda/shared-types";
 import { api } from "../../shared/api/client";
 
@@ -33,6 +37,7 @@ export const adminKeys = {
   school: [...KEY, "school"] as const,
   term: [...KEY, "term"] as const,
   scale: [...KEY, "grading-scale"] as const,
+  setup: [...KEY, "setup"] as const,
 };
 
 export const useOverview = () => useQuery({ queryKey: adminKeys.overview, queryFn: () => api<AdminOverview>("/admin/overview") });
@@ -48,6 +53,7 @@ export const useReportCard = (studentId: string | null) =>
 export const useSchoolProfile = () => useQuery({ queryKey: adminKeys.school, queryFn: () => api<SchoolProfile>("/admin/school") });
 export const useTermDates = () => useQuery({ queryKey: adminKeys.term, queryFn: () => api<TermDates>("/admin/term") });
 export const useGradingScale = () => useQuery({ queryKey: adminKeys.scale, queryFn: () => api<GradingScaleBody>("/admin/grading-scale") });
+export const useSetup = () => useQuery({ queryKey: adminKeys.setup, queryFn: () => api<SetupStatus>("/admin/setup") });
 
 /** A change can move any figure on any admin page, so everything admin is refreshed. */
 function useAdminMutation<T, R>(fn: (input: T) => Promise<R>) {
@@ -55,7 +61,7 @@ function useAdminMutation<T, R>(fn: (input: T) => Promise<R>) {
   return useMutation({ mutationFn: fn, onSuccess: () => queryClient.invalidateQueries({ queryKey: adminKeys.all }) });
 }
 
-const send = <T>(path: string, method: "POST" | "PUT", body?: unknown) => api<T>(path, { method, body });
+const send = <T>(path: string, method: "POST" | "PUT" | "DELETE", body?: unknown) => api<T>(path, { method, body });
 
 export const useDecideUnlock = () =>
   useAdminMutation(({ id, decision }: { id: string; decision: "approve" | "decline" }) => send<void>(`/admin/unlock-requests/${encodeURIComponent(id)}/${decision}`, "POST"));
@@ -68,6 +74,18 @@ export const useInviteStaff = () => useAdminMutation((body: InviteStaffRequest) 
 export const useSaveSchool = () => useAdminMutation((body: SchoolProfile) => send<SchoolProfile>("/admin/school", "PUT", body));
 export const useSaveTerm = () => useAdminMutation((body: TermDates) => send<TermDates>("/admin/term", "PUT", body));
 export const useSaveScale = () => useAdminMutation((body: GradingScaleBody) => send<GradingScaleBody>("/admin/grading-scale", "PUT", body));
+export const useUploadLogo = () =>
+  useAdminMutation((file: File) => {
+    const form = new FormData();
+    form.append("logo", file);
+    return send<SchoolLogoResponse>("/admin/school/logo", "POST", form);
+  });
+export const useRemoveLogo = () => useAdminMutation(() => send<SchoolLogoResponse>("/admin/school/logo", "DELETE"));
+
+// Getting a new school set up (F-39).
+export const useTryClass = () => useAdminMutation((body: TryClassRequest) => send<TryClassResponse>("/admin/setup/try-class", "POST", body));
+export const useFinishFirstRun = () => useAdminMutation(() => send<void>("/admin/setup/first-run", "POST"));
+export const useHideChecklist = () => useAdminMutation((hidden: boolean) => send<void>(`/admin/setup/checklist/${hidden ? "hide" : "show"}`, "POST"));
 
 /** JSS 1 to JSS 3, then SS 1 to SS 3: how the school groups its classes. */
 export const SECTIONS = [

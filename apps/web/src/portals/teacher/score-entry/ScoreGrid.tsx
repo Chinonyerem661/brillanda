@@ -105,6 +105,7 @@ export function ScoreGrid({ sheet, views, totals, readOnly, onCommit }: ScoreGri
               key={row.studentId}
               row={row}
               rowIndex={rowIndex}
+              last={rowIndex === rows.length - 1}
               components={components}
               cells={views[row.studentId]!}
               total={totals[rowIndex]!.total}
@@ -126,6 +127,8 @@ export function ScoreGrid({ sheet, views, totals, readOnly, onCommit }: ScoreGri
 type ScoreRowProps = {
   row: ScoreSheetRow;
   rowIndex: number;
+  /** The last row shows a score error above the cell, inside the scroll area. */
+  last: boolean;
   components: ScoreSheetComponent[];
   cells: Record<string, CellView>;
   total: number;
@@ -150,6 +153,7 @@ function gradeFor(total: number, scale: GradeBand[]): GradeBand | null {
 const ScoreRow = memo(function ScoreRow({
   row,
   rowIndex,
+  last,
   components,
   cells,
   total,
@@ -178,6 +182,7 @@ const ScoreRow = memo(function ScoreRow({
             component={component}
             cell={cells[component.id]!}
             rowIndex={rowIndex}
+            last={last}
             readOnly={readOnly}
             registerInput={registerInput}
             onKeyDown={onKeyDown}
@@ -208,12 +213,12 @@ const ScoreRow = memo(function ScoreRow({
   );
 });
 
-type ScoreInputProps = Pick<ScoreRowProps, "row" | "rowIndex" | "readOnly" | "registerInput" | "onKeyDown" | "onBlur"> & {
+type ScoreInputProps = Pick<ScoreRowProps, "row" | "rowIndex" | "last" | "readOnly" | "registerInput" | "onKeyDown" | "onBlur"> & {
   component: ScoreSheetComponent;
   cell: CellView;
 };
 
-function ScoreInput({ row, component, cell, rowIndex, readOnly, registerInput, onKeyDown, onBlur }: ScoreInputProps) {
+function ScoreInput({ row, component, cell, rowIndex, last, readOnly, registerInput, onKeyDown, onBlur }: ScoreInputProps) {
   const errorId = `score-error-${row.studentId}-${component.id}`;
 
   return (
@@ -245,7 +250,7 @@ function ScoreInput({ row, component, cell, rowIndex, readOnly, registerInput, o
         <span
           id={errorId}
           role="alert"
-          className="absolute right-0 top-full z-40 mt-1 whitespace-nowrap rounded-md bg-danger px-2 py-1 text-xs font-medium text-primary-text shadow-raised"
+          className={cx("absolute right-0 z-40 whitespace-nowrap", last ? "bottom-full mb-1" : "top-full mt-1", "rounded-md bg-danger px-2 py-1 text-xs font-medium text-primary-text shadow-raised")}
         >
           {cell.error}
         </span>

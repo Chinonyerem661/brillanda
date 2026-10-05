@@ -12,8 +12,9 @@ import { toast } from "../../shared/components/Toast";
 import { levelStyle } from "../../shared/theme/levels";
 import { cx } from "../../shared/utils/cx";
 import { formatDay, greeting, plural, timeAgo } from "../../shared/utils/time";
-import { isDone, useArms, useDecideUnlock, useOverview, useUnlockRequests } from "./api";
+import { isDone, useArms, useDecideUnlock, useOverview, useSetup, useUnlockRequests } from "./api";
 import { RemindDialog, WeeklyChart } from "./parts";
+import { SetupChecklist } from "./SetupChecklist";
 
 type Need = { key: string; level: number; badge: string; title: string; detail: ReactNode; action: ReactNode };
 
@@ -25,6 +26,7 @@ export function HomePage() {
   const arms = useArms();
   const unlocks = useUnlockRequests();
   const decide = useDecideUnlock();
+  const setup = useSetup();
   const [view, setView] = useState<"classes" | "weekly">("classes");
   const [reminding, setReminding] = useState(false);
 
@@ -112,6 +114,8 @@ export function HomePage() {
           {o.scoresDueAt ? ` Scores are due ${formatDay(o.scoresDueAt)}.` : ""}
         </p>
       </Hero>
+
+      {setup.data && <SetupChecklist setup={setup.data} schoolName={user?.school?.name ?? "your school"} />}
 
       <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
         <StatCard to="/admin/classes" icon="check" label="Subjects in" value={<>{o.sheets.complete}<small className="ml-1 text-sm opacity-60">of {o.sheets.total}</small></>} note={`${o.sheets.inProgress} in progress`} level={0} index={0} />

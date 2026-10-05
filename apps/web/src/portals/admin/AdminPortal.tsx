@@ -1,8 +1,10 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { PageSpinner } from "../../shared/components/Spinner";
 import { AppShell, type NavItem } from "../../shared/layout/AppShell";
-import { useOverview } from "./api";
+import { useOverview, useSetup } from "./api";
 import { AdminSheetPage, ArmPage } from "./ArmPage";
 import { ClassesPage } from "./ClassesPage";
+import { FirstRunPage } from "./FirstRunPage";
 import { HomePage } from "./HomePage";
 import { PublishingPage } from "./PublishingPage";
 import { SettingsPage } from "./SettingsPage";
@@ -12,7 +14,14 @@ import { StudentsPage } from "./StudentsPage";
 // The school admin portal, built from the prototype (design/prototype).
 export default function AdminPortal() {
   const overview = useOverview();
+  const setup = useSetup();
+  const { pathname } = useLocation();
   const ready = overview.data?.armsReadyToPublish ?? 0;
+
+  // A new school's admin starts with the first run (F-39). If setup can't be loaded, the portal still opens.
+  if (setup.isPending) return <PageSpinner />;
+  const firstRun = setup.data && !setup.data.firstRunDone;
+  if (firstRun && !pathname.startsWith("/admin/welcome")) return <Navigate to="/admin/welcome" replace />;
 
   const nav: NavItem[] = [
     { to: "/admin", label: "Home", icon: "home", end: true },
@@ -25,6 +34,7 @@ export default function AdminPortal() {
 
   return (
     <Routes>
+      <Route path="welcome" element={firstRun ? <FirstRunPage /> : <Navigate to="/admin" replace />} />
       <Route
         element={
           <AppShell
