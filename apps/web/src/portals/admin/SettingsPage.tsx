@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
-import { resolveGrade, type GradeBand, type SchoolProfile, type TermDates } from "@brillanda/shared-types";
+import { admissionPatternProblems, formatAdmissionNo, resolveGrade, type AdmissionNumberSettings, type GradeBand, type SchoolProfile, type TermDates } from "@brillanda/shared-types";
 import { fieldError, generalError } from "../../shared/auth/LoginPage";
 import { Alert } from "../../shared/components/Alert";
 import { Button } from "../../shared/components/Button";
@@ -9,14 +9,14 @@ import { Icon } from "../../shared/components/Icon";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { PageSpinner } from "../../shared/components/Spinner";
 import { FilterTabs } from "../../shared/components/Tabs";
-import { TextField } from "../../shared/components/TextField";
+import { SelectField, TextField } from "../../shared/components/TextField";
 import { toast } from "../../shared/components/Toast";
 import { useLook } from "../../shared/theme/useLook";
 import { cx } from "../../shared/utils/cx";
-import { useGradingScale, useRemoveLogo, useSaveScale, useSaveSchool, useSaveTerm, useSchoolProfile, useTermDates, useUploadLogo } from "./api";
+import { useAdmissionNumbers, useGradingScale, useRemoveLogo, useSaveAdmissionNumbers, useSaveScale, useSaveSchool, useSaveTerm, useSchoolProfile, useTermDates, useUploadLogo } from "./api";
 
-type Tab = "SCHOOL" | "SCALE" | "TERM" | "LOOK";
-const TABS: Tab[] = ["SCHOOL", "SCALE", "TERM", "LOOK"];
+type Tab = "SCHOOL" | "NUMBERS" | "SCALE" | "TERM" | "LOOK";
+const TABS: Tab[] = ["SCHOOL", "NUMBERS", "SCALE", "TERM", "LOOK"];
 
 export function SettingsPage() {
   // The tab lives in the address (?tab=scale), so the setup checklist can link straight to one.
@@ -28,10 +28,11 @@ export function SettingsPage() {
     <>
       <PageHeader title="Settings" />
       <div className="mb-5">
-        <FilterTabs label="Settings" value={tab} onChange={setTab} items={[{ value: "SCHOOL", label: "School" }, { value: "SCALE", label: "Grading scale" }, { value: "TERM", label: "Term dates" }, { value: "LOOK", label: "Look" }]} />
+        <FilterTabs label="Settings" value={tab} onChange={setTab} items={[{ value: "SCHOOL", label: "School" }, { value: "NUMBERS", label: "Admission numbers" }, { value: "SCALE", label: "Grading scale" }, { value: "TERM", label: "Term dates" }, { value: "LOOK", label: "Look" }]} />
       </div>
       <div className="max-w-2xl">
         {tab === "SCHOOL" && <SchoolTab />}
+        {tab === "NUMBERS" && <NumbersTab />}
         {tab === "SCALE" && <ScaleTab />}
         {tab === "TERM" && <TermTab />}
         {tab === "LOOK" && <LookTab />}
@@ -104,6 +105,46 @@ function SchoolForm({ initial }: { initial: SchoolProfile }) {
         <TextField label="Address" value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} />
         {generalError(save.error) && <Alert tone="danger">{generalError(save.error)}</Alert>}
         <div><Button type="submit" loading={save.isPending}>Save changes</Button></div>
+      </form>
+    </Card>
+  );
+}
+
+function NumbersTab() {
+  const numbers = useAdmissionNumbers();
+  if (numbers.isPending) return <PageSpinner />;
+  if (numbers.error) return <Alert tone="danger">{numbers.error.message}</Alert>;
+  return <NumbersForm initial={numbers.data} />;
+}
+
+/** The school's admission number format (F-40), previewed as it is typed. */
+function NumbersForm({ initial }: { initial: AdmissionNumberSettings }) {
+  const [form, setForm] = useState({ pattern: initial.pattern, digits: String(initial.digits), next: String(initial.next) });
+  const save = useSaveAdmissionNumbers();
+  const format = { pattern: form.pattern, digits: Number(form.digits) };
+  const problems = admissionPatternProblems(format);
+  const next = Number(form.next);
+  const year = initial.year ?? new Date().getFullYear();
+  const preview = problems.length ? null : formatAdmissionNo(format, year, Number.isInteger(next) && next > 0 ? next : 1);
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    save.mutate({ ...format, next }, { onSuccess: (saved) => toast(`Saved. The next student gets ${saved.preview}`) });
+  };
+  return (
+    <Card title="Admission numbers" description="New students get the next number automatically. You can still type one by hand when enrolling.">
+      <form onSubmit={submit} className="grid gap-4" noValidate>
+        <TextField label="Format" value={form.pattern} onChange={(e) => setForm((f) => ({ ...f, pattern: e.target.value }))} spellCheck={false} autoComplete="off" error={problems[0] ?? fieldError(save.error, "pattern")} hint="{YEAR} becomes the session's first year and {NUMBER} the running count, e.g. SA/{YEAR}/{NUMBER}." />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <SelectField label="Digits in the number" value={form.digits} onChange={(e) => setForm((f) => ({ ...f, digits: e.target.value }))}>
+            {[1, 2, 3, 4, 5, 6].map((d) => <option key={d} value={d}>{d} ({"0".repeat(d - 1)}1)</option>)}
+          </SelectField>
+          <TextField label="Next number" inputMode="numeric" value={form.next} onChange={(e) => setForm((f) => ({ ...f, next: e.target.value.replace(/D/g, "") }))} error={fieldError(save.error, "next")} hint="Raise it if you already gave out numbers outside Brillanda." />
+        </div>
+        <p className="rounded-2xl bg-sunken p-3.5 text-sm" aria-live="polite">
+          {preview ? <>The next student gets <b className="font-semibold tabular-nums">{preview}</b></> : "Fix the format to see the next number."}
+        </p>
+        {generalError(save.error) && <Alert tone="danger">{generalError(save.error)}</Alert>}
+        <div><Button type="submit" disabled={problems.length > 0} loading={save.isPending}>Save format</Button></div>
       </form>
     </Card>
   );

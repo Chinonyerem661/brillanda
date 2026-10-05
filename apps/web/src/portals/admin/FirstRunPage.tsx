@@ -148,7 +148,7 @@ function OneClass({ onBack, onReady }: { onBack: () => void; onReady: (sheet: Sc
           onChange={(e) => setNames(e.target.value)}
           placeholder={"Chidera Okafor\nTunde Bello\nAmina Yusuf\nEmeka Obi\nFolake Adeyemi"}
           error={fieldError(tryClass.error, "studentNames")}
-          hint={lines.length ? `${plural(lines.length, "name")}. Admission numbers are filled in for now; correct them later.` : "One name per line. You can paste a column from a spreadsheet."}
+          hint={lines.length ? `${plural(lines.length, "name")}. Each gets the next admission number.` : "One name per line. You can paste a column from a spreadsheet."}
         />
         {generalError(tryClass.error) && !fieldError(tryClass.error, "studentNames") && <Alert tone="danger">{generalError(tryClass.error)}</Alert>}
       </div>

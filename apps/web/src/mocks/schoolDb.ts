@@ -1,4 +1,4 @@
-import type { EntryState, GradeBand, ParentStatus, SchoolProfile, TermDates } from "@brillanda/shared-types";
+import { defaultAdmissionPattern, formatAdmissionNo, type EntryState, type Gender, type GradeBand, type GuardianDetails, type ParentStatus, type SchoolProfile, type StudentStatus, type TermDates } from "@brillanda/shared-types";
 import { MOCK_COMPONENTS, MOCK_GRADING_SCALE, MOCK_TERM } from "./db";
 
 // Stand-in data for the school admin portal (DECISIONS.md D-7, F-37): one whole school, 12 arms
@@ -11,7 +11,7 @@ import { MOCK_COMPONENTS, MOCK_GRADING_SCALE, MOCK_TERM } from "./db";
 // sample account is signed in.
 
 export type SchoolKey = "greenfield" | "sunrise";
-const STORAGE_KEYS: Record<SchoolKey, string> = { greenfield: "brillanda:school-v3", sunrise: "brillanda:new-school-v1" };
+const STORAGE_KEYS: Record<SchoolKey, string> = { greenfield: "brillanda:school-v4", sunrise: "brillanda:new-school-v2" };
 /** Part of the access token the "New school" sample account signs in with. */
 export const NEW_SCHOOL_TOKEN_MARK = "new-school";
 const DAY = 86_400_000;
@@ -21,6 +21,21 @@ export type Cell = number | "ABS" | null;
 export type Sheet = { status: EntryState; scores: Record<string, [Cell, Cell, Cell]>; remindedAt: string | null };
 export type StaffRecord = { id: string; fullName: string; email: string; role: "TEACHER" | "SCHOOL_ADMIN"; status: "ACTIVE" | "INVITED" };
 export type UnlockRecord = { id: string; armId: string; subjectId: string; reason: string; requestedById: string; createdAt: string; status: "PENDING" | "APPROVED" | "REJECTED" };
+
+export type StudentRow = {
+  id: string;
+  fullName: string;
+  admissionNo: string;
+  /** Their current arm, or their last one once they have left. */
+  armId: string;
+  parentStatus: ParentStatus;
+  gender: Gender | null;
+  dob: string | null;
+  guardian: GuardianDetails;
+  joinedOn: string;
+  status: StudentStatus;
+  left: { on: string; reason: string | null } | null;
+};
 
 /** Where the school is in getting set up. `imported` is set by the student import (step 4). */
 export type SetupState = { firstRunDone: boolean; checklistHidden: boolean; gradingChecked: boolean; termSet: boolean; imported: boolean };
@@ -37,7 +52,9 @@ export type SchoolDb = {
   staff: StaffRecord[];
   /** Who teaches each subject in each arm, by `${armId}:${subjectId}`. */
   teacherOf: Record<string, string>;
-  students: { id: string; fullName: string; admissionNo: string; armId: string; parentStatus: ParentStatus }[];
+  students: StudentRow[];
+  /** How admission numbers are made, and the running count (F-40). */
+  admission: { pattern: string; digits: number; next: number };
   sheets: Record<string, Sheet>;
   unlocks: UnlockRecord[];
   /** When each arm was published, by arm id. */
@@ -68,8 +85,37 @@ function rng(seed: number) {
 const FIRST = ["Adaeze", "Ifeanyi", "Tolu", "Zainab", "David", "Chisom", "Emeka", "Fatima", "Olumide", "Kemi", "Sade", "Musa", "Halima", "Ebuka", "Amaka", "Yusuf", "Blessing", "Tobi", "Femi", "Aisha", "Uche", "Nneka", "Segun", "Bisola", "Ikenna", "Temi", "Ada", "Funke", "Kelechi", "Nkechi", "Seun", "Dayo", "Ireti", "Somto", "Hauwa", "Precious", "Daniel", "Esther", "Joshua", "Grace", "Victor", "Ruth", "Samuel", "Deborah", "Ibrahim", "Maryam", "Chidi", "Oluwaseun"];
 const LAST = ["Adeyemi", "Bello", "Eze", "Nwosu", "Okon", "Danjuma", "Ibe", "Lawal", "Adewale", "Obi", "Yusuf", "Etim", "Nnaji", "Balogun", "Uzor", "Ogunleye", "Abubakar", "Chukwu", "Ojo", "Afolabi", "Onyeka", "Salami", "Mohammed", "Olatunji", "Akande", "Nwachukwu", "Oyelaran", "Ekanem", "Okoro", "Ajayi"];
 
+const FEMALE = new Set(["Adaeze", "Zainab", "Chisom", "Fatima", "Kemi", "Sade", "Halima", "Amaka", "Blessing", "Aisha", "Nneka", "Bisola", "Temi", "Ada", "Funke", "Nkechi", "Ireti", "Hauwa", "Precious", "Esther", "Grace", "Ruth", "Deborah", "Maryam", "Chiamaka"]);
+const SESSION_START_YEAR = Number(MOCK_TERM.sessionName.slice(0, 4));
+
+/** A seeded student with believable details: JSS 1 joined this year, SS 3 five years ago. */
+function sampleStudent(r: () => number, { id, fullName, armId, classOrder, linked }: { id: string; fullName: string; armId: string; classOrder: number; linked: boolean }): StudentRow {
+  const joinedYear = SESSION_START_YEAR - classOrder;
+  const last = fullName.split(" ").at(-1)!;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return {
+    id,
+    fullName,
+    admissionNo: "", // numbered in admission order once everyone is seeded
+    armId,
+    parentStatus: linked ? "LINKED" : "NONE",
+    gender: FEMALE.has(fullName.split(" ")[0]!) ? "FEMALE" : "MALE",
+    dob: `${joinedYear - 11}-${pad(1 + Math.floor(r() * 12))}-${pad(1 + Math.floor(r() * 28))}`,
+    guardian: {
+      name: `${r() < 0.5 ? "Mrs" : "Mr"} ${last}`,
+      phone: `080${String(Math.floor(r() * 1e8)).padStart(8, "0")}`,
+      email: linked ? `${last.toLowerCase()}.family${Math.floor(r() * 90 + 10)}@gmail.com` : null,
+    },
+    joinedOn: `${joinedYear}-09-14`,
+    status: "ACTIVE",
+    left: null,
+  };
+}
+
 function seed(now = Date.now()): SchoolDb {
   const r = rng(2026);
+  // A separate sequence for names' details, so adding them never changes the sample results.
+  const details = rng(4049);
   const iso = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
   const classes = ["JSS 1", "JSS 2", "JSS 3", "SS 1", "SS 2", "SS 3"].map((name, order) => ({ id: `class-${order + 1}`, name, order }));
@@ -111,16 +157,30 @@ function seed(now = Date.now()): SchoolDb {
       used.add(name);
       const id = `student-${arm.id.slice(4)}-${k + 1}`;
       ability[id] = Math.max(28, Math.min(95, 62 + (r() + r() + r() - 1.5) * 34));
-      students.push({ id, fullName: name, admissionNo: `GC/2026/${String(ai + 1).padStart(2, "0")}${String(k + 1).padStart(2, "0")}`, armId: arm.id, parentStatus: r() < 0.93 ? "LINKED" : "NONE" });
+      const linked = r() < 0.93;
+      students.push(sampleStudent(details, { id, fullName: name, armId: arm.id, classOrder: Math.floor(ai / 2), linked }));
     }
   });
   for (const child of SAMPLE_CHILDREN) {
     const s = students.find((x) => x.armId === child.armId)!;
     delete ability[s.id];
-    Object.assign(s, { id: child.id, fullName: child.fullName, parentStatus: "LINKED" });
+    Object.assign(s, {
+      id: child.id,
+      fullName: child.fullName,
+      parentStatus: "LINKED",
+      gender: FEMALE.has(child.fullName.split(" ")[0]!) ? "FEMALE" : "MALE",
+      guardian: { name: "Mrs Ngozi Okafor", phone: "08031234567", email: "parent@greenfield.sample" },
+    });
     ability[child.id] = child.ability;
   }
   students.sort((a, b) => (a.armId === b.armId ? a.fullName.split(" ")[1]!.localeCompare(b.fullName.split(" ")[1]!) : 0));
+
+  // Admission numbers run on from year to year, in the order students joined.
+  const admission = { pattern: "GC/{YEAR}/{NUMBER}", digits: 4, next: 1 };
+  const byClassOrder = (st: StudentRow) => classes.find((c) => c.id === arms.find((a) => a.id === st.armId)!.classId)!.order;
+  for (const st of [...students].sort((a, b) => byClassOrder(b) - byClassOrder(a))) {
+    st.admissionNo = formatAdmissionNo(admission, Number(st.joinedOn.slice(0, 4)), admission.next++);
+  }
 
   // Where each sheet stands, then scores to match.
   const state: Record<string, { status: EntryState; share: number }> = {};
@@ -155,6 +215,18 @@ function seed(now = Date.now()): SchoolDb {
     sheets[key] = { status: state[key]!.status, scores, remindedAt: null };
   }
 
+  // Two who have left, so the school's records show former students too.
+  const leaver = (fullName: string, armId: string, classOrder: number, status: StudentStatus, daysAgo: number, reason: string): StudentRow => ({
+    ...sampleStudent(details, { id: `student-left-${students.length}`, fullName, armId, classOrder, linked: true }),
+    admissionNo: formatAdmissionNo(admission, SESSION_START_YEAR - classOrder, admission.next++),
+    status,
+    left: { on: iso(now - daysAgo * DAY), reason },
+  });
+  students.push(
+    leaver("Kunle Fashola", "arm-jss3b", 2, "TRANSFERRED", 40, "Family moved to Abuja."),
+    leaver("Ngozi Uchenna", "arm-ss1b", 3, "WITHDRAWN", 18, "Fees not paid for the term."),
+  );
+
   return {
     id: "greenfield",
     setup: SETUP_FINISHED,
@@ -167,6 +239,7 @@ function seed(now = Date.now()): SchoolDb {
     staff,
     teacherOf,
     students,
+    admission,
     sheets,
     unlocks: [
       { id: "unlock-1", armId: "arm-jss3a", subjectId: "subject-agric", reason: "Two continuous assessment scores went into the wrong column.", requestedById: "t-eze", createdAt: new Date(now - 2 * 3_600_000).toISOString(), status: "PENDING" },
@@ -209,10 +282,32 @@ function seedNewSchool(now = Date.now()): SchoolDb {
     staff: [{ id: "a-nwankwo", fullName: "Adaobi Nwankwo", email: "admin@sunrise.sample", role: "SCHOOL_ADMIN", status: "ACTIVE" }],
     teacherOf: {},
     students: [],
+    admission: { pattern: defaultAdmissionPattern("Sunrise Academy"), digits: 3, next: 1 },
     sheets,
     unlocks: [],
     published: {},
     parentSeen: [],
+  };
+}
+
+/** The next admission number in the school's format; takes it, so call once per student. */
+export function takeAdmissionNo(db: SchoolDb): string {
+  return formatAdmissionNo(db.admission, SESSION_START_YEAR, db.admission.next++);
+}
+
+export const sessionStartYear = () => SESSION_START_YEAR;
+
+/** A newly enrolled student, active from `joinedOn`. */
+export function newStudentRow(fields: Pick<StudentRow, "id" | "fullName" | "admissionNo" | "armId"> & Partial<StudentRow>): StudentRow {
+  return {
+    parentStatus: "NONE",
+    gender: null,
+    dob: null,
+    guardian: { name: null, phone: null, email: null },
+    joinedOn: new Date().toISOString().slice(0, 10),
+    status: "ACTIVE",
+    left: null,
+    ...fields,
   };
 }
 

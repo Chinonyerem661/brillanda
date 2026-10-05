@@ -8,7 +8,7 @@ import type {
   TryClassResponse,
 } from "@brillanda/shared-types";
 import { adminSheet } from "./adminHandlers";
-import { COMPONENTS, loadSchool, NEW_SCHOOL_TERMS, saveSchool, sheetId, TERM, type Cell, type SchoolDb } from "./schoolDb";
+import { COMPONENTS, loadSchool, NEW_SCHOOL_TERMS, newStudentRow, saveSchool, sheetId, takeAdmissionNo, TERM, type Cell, type SchoolDb } from "./schoolDb";
 
 // Stand-ins for getting a new school set up (packages/shared-types/src/admin.ts, DECISIONS.md F-39),
 // and for a school admin saving scores. Delete with the rest of the stand-ins when the API ships.
@@ -76,13 +76,14 @@ export const setupHandlers = [
 
     // Trying again replaces the names from the last try, and their scores.
     const previous = new Set(db.students.filter((s) => s.id.startsWith(TRY_PREFIX)).map((s) => s.id));
+    // Their admission numbers are given back when nobody else has been enrolled since.
+    if (previous.size && previous.size === db.students.length) db.admission.next -= previous.size;
     db.students = db.students.filter((s) => !previous.has(s.id));
     for (const sheet of Object.values(db.sheets)) for (const id of previous) delete sheet.scores[id];
 
     const stamp = Date.now();
     names.forEach((fullName, i) => {
-      const id = `${TRY_PREFIX}${stamp}-${i + 1}`;
-      db.students.push({ id, fullName, admissionNo: `TEMP-${String(i + 1).padStart(3, "0")}`, armId: body.armId, parentStatus: "NONE" });
+      db.students.push(newStudentRow({ id: `${TRY_PREFIX}${stamp}-${i + 1}`, fullName, admissionNo: takeAdmissionNo(db), armId: body.armId }));
     });
     saveSchool(db);
     return HttpResponse.json<TryClassResponse>({ sheet: adminSheet(db, body.armId, body.subjectId)! }, { status: 201 });

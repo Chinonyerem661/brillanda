@@ -41,7 +41,9 @@ const person = (db: SchoolDb, id: string | undefined) => {
   return found ? { id: found.id, fullName: found.fullName } : null;
 };
 const classOf = (db: SchoolDb, armId: string) => db.classes.find((c) => c.id === db.arms.find((a) => a.id === armId)?.classId)!;
-const studentsIn = (db: SchoolDb, armId: string) => db.students.filter((s) => s.armId === armId);
+/** Students currently in the arm; those who have left keep their record but drop off class lists. */
+const studentsIn = (db: SchoolDb, armId: string) => db.students.filter((s) => s.armId === armId && s.status === "ACTIVE");
+const activeStudents = (db: SchoolDb) => db.students.filter((s) => s.status === "ACTIVE");
 
 function sheetProgress(db: SchoolDb, armId: string, subjectId: string) {
   const sheet = db.sheets[sheetId(armId, subjectId)]!;
@@ -170,8 +172,8 @@ export const adminHandlers = [
       armsReadyToPublish: db.arms.filter((a) => publishStateOf(db, a.id) === "COMPLETE").length,
       armsPublished: Object.keys(db.published).length,
       pendingUnlockRequests: db.unlocks.filter((u) => u.status === "PENDING").length,
-      students: db.students.length,
-      studentsWithoutParent: db.students.filter((s) => s.parentStatus !== "LINKED").length,
+      students: activeStudents(db).length,
+      studentsWithoutParent: activeStudents(db).filter((s) => s.parentStatus !== "LINKED").length,
       teachersBehind: [...behind].sort((a, b) => b[1] - a[1]).map(([id, sheets]) => ({ teacher: person(db, id)!, sheets })),
     });
   }),
@@ -296,7 +298,7 @@ export const adminHandlers = [
     return HttpResponse.json<AdminStudent[]>(
       db.students.map((st) => {
         const arm = db.arms.find((a) => a.id === st.armId)!;
-        return { id: st.id, fullName: st.fullName, admissionNo: st.admissionNo, armId: arm.id, armName: arm.name, classOrder: classOf(db, arm.id).order, parentStatus: st.parentStatus };
+        return { id: st.id, fullName: st.fullName, admissionNo: st.admissionNo, armId: arm.id, armName: arm.name, classOrder: classOf(db, arm.id).order, parentStatus: st.parentStatus, gender: st.gender, status: st.status };
       }),
     );
   }),

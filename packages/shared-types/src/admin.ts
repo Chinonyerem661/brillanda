@@ -96,8 +96,69 @@ export type ReportCard = {
 
 export type ParentStatus = "LINKED" | "INVITED" | "NONE";
 
-/** GET /admin/students: every enrolled student this term. */
-export type AdminStudent = { id: string; fullName: string; admissionNo: string; armId: string; armName: string; classOrder: number; parentStatus: ParentStatus };
+export type Gender = "MALE" | "FEMALE";
+/** Mirrors the schema's EnrollmentStatus. Anyone not ACTIVE has left the school. */
+export type StudentStatus = "ACTIVE" | "WITHDRAWN" | "TRANSFERRED" | "GRADUATED";
+
+/**
+ * GET /admin/students: every student, including those who have left (`status`); the arm is
+ * their current one, or their last one if they have left.
+ */
+export type AdminStudent = {
+  id: string;
+  fullName: string;
+  admissionNo: string;
+  armId: string;
+  armName: string;
+  classOrder: number;
+  parentStatus: ParentStatus;
+  gender: Gender | null;
+  status: StudentStatus;
+};
+
+// ---- Enrolment (DECISIONS.md F-40) ----
+
+export type GuardianDetails = { name: string | null; phone: string | null; email: string | null };
+
+/** GET /admin/students/:id */
+export type StudentRecord = AdminStudent & {
+  dob: string | null;
+  guardian: GuardianDetails;
+  /** When they joined the school; mid-session joiners have a date inside the session. */
+  joinedOn: string;
+  left: { on: string; reason: string | null } | null;
+};
+
+/**
+ * POST /admin/students: enrols one student into an arm for the current session. A blank
+ * `admissionNo` takes the next number in the school's format. `inviteParent` emails the guardian
+ * an invite (needs `guardian.email`).
+ */
+export type EnrolStudentRequest = {
+  fullName: string;
+  gender: Gender | null;
+  dob: string | null;
+  armId: string;
+  admissionNo: string | null;
+  joinedOn: string;
+  guardian: GuardianDetails;
+  inviteParent: boolean;
+};
+export type EnrolStudentResponse = { student: StudentRecord; parentInvited: boolean };
+
+/** PUT /admin/students/:id: corrects details. A new `armId` moves them to another class, scores and all. */
+export type UpdateStudentRequest = Omit<EnrolStudentRequest, "inviteParent" | "admissionNo"> & { admissionNo: string };
+
+/** POST /admin/students/:id/leave: they keep their record and results, and drop off class lists and score sheets. */
+export type LeaveSchoolRequest = { status: Exclude<StudentStatus, "ACTIVE">; on: string; reason: string | null };
+
+/** POST /admin/students/:id/readmit: back to ACTIVE, in their last class. No body. */
+
+/**
+ * GET and PUT /admin/admission-numbers. `next` is the running count. Read-only: `year` is the
+ * session's first year, which {YEAR} becomes; `preview` is what the next student gets.
+ */
+export type AdmissionNumberSettings = { pattern: string; digits: number; next: number; year?: number; preview?: string };
 
 /** POST /admin/students/:id/invite-parent */
 export type InviteParentRequest = { fullName: string; email: string };

@@ -1,5 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
+  AdmissionNumberSettings,
+  EnrolStudentRequest,
+  EnrolStudentResponse,
+  LeaveSchoolRequest,
+  StudentRecord,
+  UpdateStudentRequest,
   AdminOverview,
   AdminSheet,
   AdminStudent,
@@ -38,6 +44,8 @@ export const adminKeys = {
   term: [...KEY, "term"] as const,
   scale: [...KEY, "grading-scale"] as const,
   setup: [...KEY, "setup"] as const,
+  student: (id: string) => [...KEY, "students", id] as const,
+  admissionNumbers: [...KEY, "admission-numbers"] as const,
 };
 
 export const useOverview = () => useQuery({ queryKey: adminKeys.overview, queryFn: () => api<AdminOverview>("/admin/overview") });
@@ -54,6 +62,9 @@ export const useSchoolProfile = () => useQuery({ queryKey: adminKeys.school, que
 export const useTermDates = () => useQuery({ queryKey: adminKeys.term, queryFn: () => api<TermDates>("/admin/term") });
 export const useGradingScale = () => useQuery({ queryKey: adminKeys.scale, queryFn: () => api<GradingScaleBody>("/admin/grading-scale") });
 export const useSetup = () => useQuery({ queryKey: adminKeys.setup, queryFn: () => api<SetupStatus>("/admin/setup") });
+export const useStudent = (id: string | null) =>
+  useQuery({ queryKey: adminKeys.student(id ?? ""), queryFn: () => api<StudentRecord>(`/admin/students/${encodeURIComponent(id!)}`), enabled: !!id });
+export const useAdmissionNumbers = () => useQuery({ queryKey: adminKeys.admissionNumbers, queryFn: () => api<AdmissionNumberSettings>("/admin/admission-numbers") });
 
 /** A change can move any figure on any admin page, so everything admin is refreshed. */
 function useAdminMutation<T, R>(fn: (input: T) => Promise<R>) {
@@ -81,6 +92,16 @@ export const useUploadLogo = () =>
     return send<SchoolLogoResponse>("/admin/school/logo", "POST", form);
   });
 export const useRemoveLogo = () => useAdminMutation(() => send<SchoolLogoResponse>("/admin/school/logo", "DELETE"));
+
+// Enrolment (F-40).
+export const useEnrolStudent = () => useAdminMutation((body: EnrolStudentRequest) => send<EnrolStudentResponse>("/admin/students", "POST", body));
+export const useUpdateStudent = () =>
+  useAdminMutation(({ id, ...body }: UpdateStudentRequest & { id: string }) => send<StudentRecord>(`/admin/students/${encodeURIComponent(id)}`, "PUT", body));
+export const useLeaveSchool = () =>
+  useAdminMutation(({ id, ...body }: LeaveSchoolRequest & { id: string }) => send<StudentRecord>(`/admin/students/${encodeURIComponent(id)}/leave`, "POST", body));
+export const useReadmit = () => useAdminMutation((id: string) => send<StudentRecord>(`/admin/students/${encodeURIComponent(id)}/readmit`, "POST"));
+export const useSaveAdmissionNumbers = () =>
+  useAdminMutation((body: AdmissionNumberSettings) => send<AdmissionNumberSettings>("/admin/admission-numbers", "PUT", body));
 
 // Getting a new school set up (F-39).
 export const useTryClass = () => useAdminMutation((body: TryClassRequest) => send<TryClassResponse>("/admin/setup/try-class", "POST", body));

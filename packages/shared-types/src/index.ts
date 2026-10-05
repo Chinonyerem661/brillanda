@@ -5,6 +5,7 @@ export * from "./teacher";
 export * from "./platform";
 export * from "./admin";
 export * from "./parent";
+export * from "./admission";
 
 export const ROLES = ["SUPER_ADMIN", "SCHOOL_ADMIN", "TEACHER", "PARENT", "STUDENT"] as const;
 export type Role = (typeof ROLES)[number];
