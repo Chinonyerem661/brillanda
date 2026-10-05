@@ -10,7 +10,7 @@ import { useHideChecklist } from "./api";
 // Each item says what it unlocks. It can be hidden, and it goes for good once everything is done.
 
 const ITEMS: Record<SetupItemId, { title: string; unlocks: string; to: string; action: string }> = {
-  IMPORT_STUDENTS: { title: "Import your full student list", unlocks: "Teachers see their classes, and you can invite parents.", to: "/admin/students", action: "Import" },
+  IMPORT_STUDENTS: { title: "Import your full student list", unlocks: "Teachers see their classes, and you can invite parents.", to: "/admin/students/import", action: "Import" },
   INVITE_TEACHERS: { title: "Invite your teachers", unlocks: "Teachers can start entering scores for their classes.", to: "/admin/staff", action: "Invite" },
   CHECK_GRADING: { title: "Check your grading scale", unlocks: "Grades on every report card follow your school's scale. Save it once it looks right.", to: "/admin/settings?tab=scale", action: "Check" },
   UPLOAD_LOGO: { title: "Upload your school logo", unlocks: "Your logo goes on report cards.", to: "/admin/settings?tab=school", action: "Upload" },

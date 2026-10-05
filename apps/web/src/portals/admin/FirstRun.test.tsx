@@ -63,7 +63,7 @@ describe("a new school's first run", () => {
 
     const checklist = await screen.findByRole("region", { name: "Finish setting up Sunrise Academy" });
     expect(within(checklist).getByText(/0 of 5 done/)).toBeInTheDocument();
-    expect(within(checklist).getByRole("link", { name: /Import.*Import your full student list/ })).toHaveAttribute("href", "/admin/students");
+    expect(within(checklist).getByRole("link", { name: /Import.*Import your full student list/ })).toHaveAttribute("href", "/admin/students/import");
 
     await user.click(within(checklist).getByRole("button", { name: "Hide" }));
     await waitForElementToBeRemoved(checklist);

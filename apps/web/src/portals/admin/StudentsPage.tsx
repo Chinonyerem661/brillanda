@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import type { AdminStudent } from "@brillanda/shared-types";
 import { fieldError, generalError } from "../../shared/auth/LoginPage";
 import { Alert } from "../../shared/components/Alert";
@@ -47,10 +47,16 @@ export function StudentsPage() {
   const withoutParent = current.filter((s) => s.parentStatus !== "LINKED").length;
 
   const enrolButton = (
-    <Button onClick={() => setEnrolling(true)}>
-      <Icon name="plus" className="h-4 w-4" />
-      Enrol a student
-    </Button>
+    <>
+      <Link to="/admin/students/import" className="inline-flex min-h-[42px] items-center gap-2 rounded-full bg-raise px-5 text-sm font-medium shadow-raised hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+        <Icon name="upload" className="h-4 w-4" />
+        Import a list
+      </Link>
+      <Button onClick={() => setEnrolling(true)}>
+        <Icon name="plus" className="h-4 w-4" />
+        Enrol a student
+      </Button>
+    </>
   );
   const overlays = (
     <>
@@ -65,8 +71,8 @@ export function StudentsPage() {
       <>
         <PageHeader title="Students" actions={enrolButton}>Nobody is enrolled yet.</PageHeader>
         <EmptyState title="Enrol your first students">
-          Add them one at a time with their class and parent's details. Each gets the next admission number in your school's format.
-          <span className="mt-4 flex justify-center">{enrolButton}</span>
+          Import your list from a spreadsheet, or add students one at a time. Each gets the next admission number in your school's format.
+          <span className="mt-4 flex flex-wrap justify-center gap-2">{enrolButton}</span>
         </EmptyState>
         {overlays}
       </>

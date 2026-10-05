@@ -6,6 +6,7 @@ import { AdminSheetPage, ArmPage } from "./ArmPage";
 import { ClassesPage } from "./ClassesPage";
 import { FirstRunPage } from "./FirstRunPage";
 import { HomePage } from "./HomePage";
+import { ImportPage } from "./ImportPage";
 import { PublishingPage } from "./PublishingPage";
 import { SettingsPage } from "./SettingsPage";
 import { StaffPage } from "./StaffPage";
@@ -54,6 +55,7 @@ export default function AdminPortal() {
         <Route path="classes/:armId/sheets/:subjectId" element={<AdminSheetPage />} />
         <Route path="publishing" element={<PublishingPage />} />
         <Route path="students" element={<StudentsPage />} />
+        <Route path="students/import" element={<ImportPage />} />
         <Route path="staff" element={<StaffPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/admin" replace />} />

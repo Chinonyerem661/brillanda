@@ -154,6 +154,50 @@ export type LeaveSchoolRequest = { status: Exclude<StudentStatus, "ACTIVE">; on:
 
 /** POST /admin/students/:id/readmit: back to ACTIVE, in their last class. No body. */
 
+// ---- Importing a whole list (DECISIONS.md F-41) ----
+
+/** One row of the school's list once its columns are matched, with each cell as written. */
+export type ImportRow = {
+  fullName: string;
+  className: string;
+  admissionNo: string;
+  gender: string;
+  dob: string;
+  guardianName: string;
+  guardianPhone: string;
+  guardianEmail: string;
+};
+export type ImportRowField = keyof ImportRow;
+
+/**
+ * POST /admin/students/import. With `check: true` nothing is saved: every row comes back READY or
+ * PROBLEM. Without it, READY rows are enrolled (ENROLLED) and the rest skipped, so a list can be
+ * fixed and imported again. Rows already in the school come back as problems, never twice.
+ */
+export type ImportStudentsRequest = { rows: ImportRow[]; check: boolean; inviteParents: boolean; joinedOn: string };
+
+export type ImportRowResult = {
+  /** Index into the request's rows. */
+  row: number;
+  status: "READY" | "PROBLEM" | "ENROLLED";
+  problems: Partial<Record<ImportRowField, string>>;
+  /** The arm the class cell matched. */
+  armName: string | null;
+  /** As given, or the number the student gets (a preview while checking). */
+  admissionNo: string | null;
+};
+
+export type ImportStudentsResponse = {
+  results: ImportRowResult[];
+  ready: number;
+  problems: number;
+  enrolled: number;
+  parentsInvited: number;
+};
+
+/** The most rows one import takes. */
+export const MAX_IMPORT_ROWS = 2000;
+
 /**
  * GET and PUT /admin/admission-numbers. `next` is the running count. Read-only: `year` is the
  * session's first year, which {YEAR} becomes; `preview` is what the next student gets.

@@ -195,7 +195,7 @@ function TryIt({ sheet, onBack }: { sheet: ScoreSheet; onBack: () => void }) {
             ) : (
               <p className="text-sm text-text-secondary">{done} of {sheet.rows.length} students done. Scores save as you go.</p>
             )}
-            <Button loading={finish.pending} onClick={() => finish.go("/admin/students")}>Import your full student list</Button>
+            <Button loading={finish.pending} onClick={() => finish.go("/admin/students/import")}>Import your full student list</Button>
             <Button variant="ghost" disabled={finish.pending} onClick={() => finish.go("/admin")}>Go to your dashboard</Button>
             {finish.error && <Alert tone="danger">{finish.error.message}</Alert>}
           </div>

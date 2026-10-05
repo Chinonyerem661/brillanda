@@ -1,11 +1,18 @@
 import { delay, http, HttpResponse } from "msw";
 import {
   admissionPatternProblems,
+  classKey,
   formatAdmissionNo,
+  MAX_IMPORT_ROWS,
+  readDate,
+  readGender,
   sameAdmissionNo,
   type AdmissionNumberSettings,
   type EnrolStudentRequest,
   type EnrolStudentResponse,
+  type ImportRowResult,
+  type ImportStudentsRequest,
+  type ImportStudentsResponse,
   type LeaveSchoolRequest,
   type StudentRecord,
   type UpdateStudentRequest,
@@ -90,7 +97,109 @@ function moveScores(db: SchoolDb, studentId: string, from: string, to: string) {
   }
 }
 
+/** Checks one imported row against the school and the rows before it, or enrols it. */
+function checkImport(db: SchoolDb, body: ImportStudentsRequest): ImportStudentsResponse {
+  const armsByKey = new Map(db.arms.map((a) => [classKey(a.name), a]));
+  const classesByKey = new Map(db.classes.map((c) => [classKey(c.name), c]));
+  const armNames = db.arms.map((a) => a.name);
+  const seenNumbers = new Map<string, number>();
+  const seenPeople = new Map<string, number>();
+  let next = db.admission.next;
+  let enrolled = 0;
+  let parentsInvited = 0;
+  const stamp = Date.now();
+
+  const results = body.rows.map((row, index): ImportRowResult => {
+    const problems: ImportRowResult["problems"] = {};
+    const fullName = tidy(row.fullName) ?? "";
+    if (fullName.length < 2) problems.fullName = "No name.";
+    else if (!fullName.includes(" ")) problems.fullName = "Add their surname too.";
+
+    const written = tidy(row.className) ?? "";
+    const arm = armsByKey.get(classKey(written));
+    if (!written) problems.className = "No class.";
+    else if (!arm) {
+      const cls = classesByKey.get(classKey(written));
+      const arms = cls ? db.arms.filter((a) => a.classId === cls.id).map((a) => a.name) : [];
+      problems.className = cls ? `Which arm? ${arms.join(" or ")}.` : `No class called “${written}”. Classes run from ${armNames[0]} to ${armNames.at(-1)}.`;
+    }
+
+    const gender = readGender(row.gender ?? "");
+    if (gender === undefined) problems.gender = `“${row.gender.trim()}” isn't a gender. Use M or F.`;
+    const dob = readDate(row.dob ?? "");
+    if (dob === undefined) problems.dob = `Can't read “${row.dob.trim()}”. Write it day first, e.g. 14/03/2014.`;
+    else if (dob) {
+      const age = sessionStartYear() - Number(dob.slice(0, 4));
+      if (age < 5 || age > 25) problems.dob = `That makes them ${age}. Check the year.`;
+    }
+    const email = tidy(row.guardianEmail);
+    if (email && !EMAIL.test(email)) problems.guardianEmail = "Check this email address.";
+    const phone = tidy(row.guardianPhone);
+    if (phone && !/^\+?[\d\s-]{7,16}$/.test(phone)) problems.guardianPhone = "Check the phone number.";
+
+    const given = tidy(row.admissionNo);
+    if (given) {
+      const key = given.toLowerCase();
+      const taken = db.students.find((s) => sameAdmissionNo(s.admissionNo, given));
+      if (taken) problems.admissionNo = `${taken.fullName} already has this number.`;
+      else if (seenNumbers.has(key)) problems.admissionNo = `Same number as row ${seenNumbers.get(key)! + 1}.`;
+      else seenNumbers.set(key, index);
+    }
+    if (fullName && arm && !problems.fullName) {
+      const person = `${fullName.toLowerCase()}|${arm.id}`;
+      const already = db.students.find((s) => s.armId === arm.id && s.status === "ACTIVE" && s.fullName.toLowerCase() === fullName.toLowerCase());
+      if (already && !given) problems.fullName = `Already in ${arm.name} (${already.admissionNo}). Give an admission number if this is someone else.`;
+      else if (seenPeople.has(person) && !given) problems.fullName = `Same as row ${seenPeople.get(person)! + 1}.`;
+      else seenPeople.set(person, index);
+    }
+
+    const ok = Object.keys(problems).length === 0;
+    const admissionNo = given ?? (ok ? formatAdmissionNo(db.admission, sessionStartYear(), next++) : null);
+    if (!ok || body.check) return { row: index, status: ok ? "READY" : "PROBLEM", problems, armName: arm?.name ?? null, admissionNo };
+
+    const invite = body.inviteParents && !!email;
+    db.students.push(newStudentRow({
+      id: `student-import-${stamp}-${index}`,
+      fullName,
+      admissionNo: admissionNo!,
+      armId: arm!.id,
+      gender: gender ?? null,
+      dob: dob ?? null,
+      joinedOn: body.joinedOn,
+      guardian: { name: tidy(row.guardianName), phone, email: email?.toLowerCase() ?? null },
+      parentStatus: invite ? "INVITED" : "NONE",
+    }));
+    enrolled++;
+    if (invite) parentsInvited++;
+    return { row: index, status: "ENROLLED", problems, armName: arm!.name, admissionNo };
+  });
+
+  if (!body.check) db.admission.next = next;
+  return {
+    results,
+    ready: results.filter((r) => r.status === "READY").length,
+    problems: results.filter((r) => r.status === "PROBLEM").length,
+    enrolled,
+    parentsInvited,
+  };
+}
+
 export const studentHandlers = [
+  http.post("/api/v1/admin/students/import", async ({ request }) => {
+    await delay(700);
+    const body = (await request.json()) as ImportStudentsRequest;
+    if (!body.rows?.length) return HttpResponse.json({ error: "The list has no rows." }, { status: 400 });
+    if (body.rows.length > MAX_IMPORT_ROWS) return HttpResponse.json({ error: `That's ${body.rows.length} rows. Import up to ${MAX_IMPORT_ROWS} at a time.` }, { status: 400 });
+    if (!body.joinedOn || !DATE.test(body.joinedOn)) return invalid({ joinedOn: "Enter the day they joined." });
+    const db = loadSchool(request);
+    const response = checkImport(db, body);
+    if (!body.check && response.enrolled) {
+      db.setup.imported = true;
+      saveSchool(db);
+    }
+    return HttpResponse.json<ImportStudentsResponse>(response);
+  }),
+
   http.get("/api/v1/admin/students/:id", async ({ params, request }) => {
     await delay();
     const db = loadSchool(request);

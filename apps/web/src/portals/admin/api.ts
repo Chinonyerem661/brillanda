@@ -3,6 +3,8 @@ import type {
   AdmissionNumberSettings,
   EnrolStudentRequest,
   EnrolStudentResponse,
+  ImportStudentsRequest,
+  ImportStudentsResponse,
   LeaveSchoolRequest,
   StudentRecord,
   UpdateStudentRequest,
@@ -99,6 +101,10 @@ export const useUpdateStudent = () =>
   useAdminMutation(({ id, ...body }: UpdateStudentRequest & { id: string }) => send<StudentRecord>(`/admin/students/${encodeURIComponent(id)}`, "PUT", body));
 export const useLeaveSchool = () =>
   useAdminMutation(({ id, ...body }: LeaveSchoolRequest & { id: string }) => send<StudentRecord>(`/admin/students/${encodeURIComponent(id)}/leave`, "POST", body));
+/** Checking a list saves nothing, so nothing else needs refreshing. */
+export const useCheckImport = () => useMutation({ mutationFn: (body: Omit<ImportStudentsRequest, "check">) => send<ImportStudentsResponse>("/admin/students/import", "POST", { ...body, check: true }) });
+export const useImportStudents = () =>
+  useAdminMutation((body: Omit<ImportStudentsRequest, "check">) => send<ImportStudentsResponse>("/admin/students/import", "POST", { ...body, check: false }));
 export const useReadmit = () => useAdminMutation((id: string) => send<StudentRecord>(`/admin/students/${encodeURIComponent(id)}/readmit`, "POST"));
 export const useSaveAdmissionNumbers = () =>
   useAdminMutation((body: AdmissionNumberSettings) => send<AdmissionNumberSettings>("/admin/admission-numbers", "PUT", body));

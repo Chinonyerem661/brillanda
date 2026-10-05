@@ -42,7 +42,7 @@ describe("enrolment", () => {
     const enrol = async (name: string) => {
       await user.click(await screen.findByRole("button", { name: "Enrol a student" }));
       const dialog = await screen.findByRole("dialog", { name: "Enrol a student" });
-      await user.type(within(dialog).getByLabelText("Full name"), name);
+      await user.type(await within(dialog).findByLabelText("Full name"), name);
       await user.selectOptions(within(dialog).getByLabelText("Class"), "JSS 2B");
       await user.type(within(dialog).getByLabelText("Admission number"), "GC/OLD/77");
       await user.click(within(dialog).getByRole("button", { name: "Enrol student" }));
