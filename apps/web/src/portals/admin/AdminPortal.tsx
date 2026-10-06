@@ -7,6 +7,7 @@ import { ClassesPage } from "./ClassesPage";
 import { FirstRunPage } from "./FirstRunPage";
 import { HomePage } from "./HomePage";
 import { ImportPage } from "./ImportPage";
+import { PromotionPage } from "./PromotionPage";
 import { PublishingPage } from "./PublishingPage";
 import { SettingsPage } from "./SettingsPage";
 import { StaffPage } from "./StaffPage";
@@ -60,6 +61,7 @@ export default function AdminPortal() {
         <Route path="students/:studentId" element={<StudentPage />} />
         <Route path="staff" element={<StaffPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="session/promotion" element={<PromotionPage />} />
         <Route path="*" element={<Navigate to="/admin" replace />} />
       </Route>
     </Routes>

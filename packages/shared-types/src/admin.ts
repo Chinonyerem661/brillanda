@@ -299,6 +299,52 @@ export type SessionInfo = {
 export type CloseTermRequest = { next: TermDates; closeUnpublished: boolean };
 export type CloseTermResponse = { closed: TermRef; started: TermRef };
 
+// ---- Promotion at the end of a session (DECISIONS.md F-44) ----
+
+export type PromotionDecision = "PROMOTE" | "REPEAT" | "GRADUATE";
+
+export type PromotionStudent = {
+  id: string;
+  fullName: string;
+  admissionNo: string;
+  /** The average of this session's term averages; null when no term has results. */
+  yearlyAverage: number | null;
+  termsCounted: number;
+  /** What the pass mark suggests: final-year students graduate, others move up at or above it. */
+  suggested: PromotionDecision;
+  decision: PromotionDecision;
+  reason: string | null;
+  /** Where they'll be next session; null for graduates. */
+  destination: string | null;
+};
+
+/**
+ * GET /admin/promotion: every current student by class, with the suggested decision and any change
+ * made by hand. `passMark` null means the grading scale's lowest pass grade.
+ */
+export type PromotionPlan = {
+  sessionName: string;
+  nextSessionName: string;
+  passMark: number;
+  /** True only while the session's last term is the current one. */
+  open: boolean;
+  classes: { armId: string; armName: string; classOrder: number; students: PromotionStudent[] }[];
+  counts: Record<PromotionDecision, number>;
+  unpublishedArms: { id: string; name: string }[];
+};
+
+/** PUT /admin/promotion/pass-mark */
+export type PassMarkRequest = { passMark: number };
+/** PUT /admin/promotion/students/:id. Choosing the suggested decision clears the change. */
+export type PromotionChangeRequest = { decision: PromotionDecision; reason: string | null };
+
+/**
+ * POST /admin/promotion/complete: closes the last term, moves everyone as decided (graduates leave
+ * with status GRADUATED), and starts the next session's first term on `firstTerm`'s dates.
+ */
+export type CompletePromotionRequest = { firstTerm: TermDates; closeUnpublished: boolean };
+export type CompletePromotionResponse = { sessionName: string; promoted: number; repeating: number; graduated: number };
+
 // ---- Getting a new school set up (Onboarding Flow §3, DECISIONS.md F-39) ----
 // The Brillanda team creates the school with working defaults (F-36); nothing here blocks using it.
 

@@ -71,7 +71,8 @@ function CloseTerm({ session, current }: { session: SessionInfo; current: Sessio
   if (!next) {
     return (
       <Card title={`At the end of ${current.name}`} description="The session closes with promotion.">
-        <p className="text-sm text-text-secondary">When the third term's results are published, you'll review who moves up, who repeats and who graduates, and start the next session. That step is on its way.</p>
+        <p className="text-sm text-text-secondary">Once this term's results are in, review who moves up, who repeats and who graduates. Closing the session moves everyone at once and starts the next one.</p>
+        <Link to="/admin/session/promotion" className="mt-4 inline-flex min-h-[42px] items-center rounded-full bg-primary px-5 text-sm font-medium text-primary-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">Review promotion</Link>
       </Card>
     );
   }
@@ -93,7 +94,10 @@ function CloseTerm({ session, current }: { session: SessionInfo; current: Sessio
           <Alert tone="success">Every class has been published.</Alert>
         )}
       </div>
-      <div className="mt-4"><Button onClick={() => setOpen(true)}>Close {current.name}</Button></div>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <Button onClick={() => setOpen(true)}>Close {current.name}</Button>
+        <Link to="/admin/session/promotion" className="text-sm font-medium text-accent hover:underline">Preview end-of-year promotion</Link>
+      </div>
       {open && <CloseTermDialog current={current} next={next} unpublished={unpublished} onClose={() => setOpen(false)} />}
     </Card>
   );

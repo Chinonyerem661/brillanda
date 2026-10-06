@@ -11,7 +11,7 @@ import {
 } from "@brillanda/shared-types";
 import { armResults, cellsOf, remarksFor, reportCard } from "./adminHandlers";
 import { HISTORY } from "./parentHandlers";
-import { asClosed, COMPONENTS, loadSchool, rng, saveSchool, sessionStartYear, sheetId, termOf, type SchoolDb, type StudentRow } from "./schoolDb";
+import { asClosed, COMPONENTS, loadSchool, rng, SAMPLE_START_YEAR, saveSchool, sheetId, termOf, type SchoolDb, type StudentRow } from "./schoolDb";
 import { studentRecord } from "./studentHandlers";
 
 // Stand-ins for a student's own page (DECISIONS.md F-42): results this term and in every term
@@ -71,11 +71,11 @@ export function pastTerms(db: SchoolDb, st: StudentRow): TermResult[] {
   const of = 26 + Math.floor(r() * 9);
   const out: TermResult[] = [];
   const fixed = HISTORY[st.id];
-  const thisSession = `${sessionStartYear()}/${sessionStartYear() + 1}`;
+
   record.classHistory.forEach(({ sessionName, armName }, yearIndex) => {
-    if (sessionName === thisSession) return;
     const year = Number(sessionName.slice(0, 4));
-    const lastSession = sessionName === `${sessionStartYear() - 1}/${sessionStartYear()}`;
+    if (year >= SAMPLE_START_YEAR) return;
+    const lastSession = year === SAMPLE_START_YEAR - 1;
     for (let term = 0; term < 3; term++) {
       // A student who left part-way through a session has no results after they went.
       if (st.left && new Date(`${[year, year + 1, year + 1][term]}-${["12-12", "04-03", "07-24"][term]}`) > new Date(st.left.on)) continue;

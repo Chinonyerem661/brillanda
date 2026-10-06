@@ -91,7 +91,8 @@ function results(db: SchoolDb, childId: string): ChildResults {
   const closed = db.closedTerms.flatMap((ct) => (ct.armOf[childId] ? [currentTerm(asClosed(db, ct), childId, ct.term)] : [])).filter((t): t is TermResult => !!t);
   const terms = [...historyTerms(db, childId), ...closed, ...(now ? [now] : [])];
   const last = terms[terms.length - 1]!;
-  const arm = db.arms.find((a) => a.id === child.armId)!;
+  // Their arm now: it changes when they're promoted.
+  const arm = db.arms.find((a) => a.id === (db.students.find((s) => s.id === childId)?.armId ?? child.armId))!;
   return {
     child: {
       id: child.id,

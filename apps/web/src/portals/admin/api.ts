@@ -3,6 +3,10 @@ import type {
   AdmissionNumberSettings,
   CloseTermRequest,
   CloseTermResponse,
+  CompletePromotionRequest,
+  CompletePromotionResponse,
+  PromotionChangeRequest,
+  PromotionPlan,
   SessionInfo,
   EnrolStudentRequest,
   EnrolStudentResponse,
@@ -121,8 +125,14 @@ export const useCheckImport = () => useMutation({ mutationFn: (body: Omit<Import
 export const useImportStudents = () =>
   useAdminMutation((body: Omit<ImportStudentsRequest, "check">) => send<ImportStudentsResponse>("/admin/students/import", "POST", { ...body, check: false }));
 export const useReadmit = () => useAdminMutation((id: string) => send<StudentRecord>(`/admin/students/${encodeURIComponent(id)}/readmit`, "POST"));
-// The school year (F-43).
+// The school year (F-43) and promotion at its end (F-44).
 export const useCloseTerm = () => useAdminMutation((body: CloseTermRequest) => send<CloseTermResponse>("/admin/session/close-term", "POST", body));
+export const usePromotion = () => useQuery({ queryKey: [...KEY, "promotion"], queryFn: () => api<PromotionPlan>("/admin/promotion") });
+export const useSetPassMark = () => useAdminMutation((passMark: number) => send<PromotionPlan>("/admin/promotion/pass-mark", "PUT", { passMark }));
+export const useChangePromotion = () =>
+  useAdminMutation(({ id, ...body }: PromotionChangeRequest & { id: string }) => send<PromotionPlan>(`/admin/promotion/students/${encodeURIComponent(id)}`, "PUT", body));
+export const useCompletePromotion = () =>
+  useAdminMutation((body: CompletePromotionRequest) => send<CompletePromotionResponse>("/admin/promotion/complete", "POST", body));
 
 // A student's own page (F-42).
 export const useAddNote = () =>

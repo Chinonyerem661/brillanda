@@ -1,6 +1,6 @@
 import { delay, http, HttpResponse } from "msw";
 import type { CloseTermRequest, CloseTermResponse, SessionInfo } from "@brillanda/shared-types";
-import { loadSchool, saveSchool, sessionStartYear, sheetId, termOf, type SchoolDb, type Sheet } from "./schoolDb";
+import { loadSchool, saveSchool, sessionNameOf, sheetId, termOf, type SchoolDb, type Sheet } from "./schoolDb";
 
 // Stand-ins for the school year (packages/shared-types/src/admin.ts, DECISIONS.md F-43): this
 // session's terms, and closing one term to start the next. Delete with the rest of the stand-ins.
@@ -11,17 +11,17 @@ const invalid = (fields: Record<string, string>) =>
   HttpResponse.json({ error: "Check the highlighted fields.", fields: Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, [v]])) }, { status: 400 });
 
 /** Classes with students this term whose results haven't been published. */
-function unpublishedArms(db: SchoolDb) {
+export function unpublishedArms(db: SchoolDb) {
   const withStudents = new Set(db.students.filter((s) => s.status === "ACTIVE").map((s) => s.armId));
   return db.arms.filter((a) => withStudents.has(a.id) && !db.published[a.id]).map((a) => ({ id: a.id, name: a.name }));
 }
 
 function sessionInfo(db: SchoolDb): SessionInfo {
-  return { name: `${sessionStartYear()}/${sessionStartYear() + 1}`, terms: db.session.terms, unpublishedArms: unpublishedArms(db) };
+  return { name: sessionNameOf(db), terms: db.session.terms, unpublishedArms: unpublishedArms(db) };
 }
 
 /** Empty score sheets for every arm and subject, for a new term. */
-function freshSheets(db: SchoolDb): Record<string, Sheet> {
+export function freshSheets(db: SchoolDb): Record<string, Sheet> {
   const sheets: Record<string, Sheet> = {};
   for (const arm of db.arms) for (const s of db.subjects) sheets[sheetId(arm.id, s.id)] = { status: "NOT_STARTED", scores: {}, remindedAt: null };
   return sheets;

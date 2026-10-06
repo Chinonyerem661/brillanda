@@ -18,7 +18,7 @@ import {
   type StudentRecord,
   type UpdateStudentRequest,
 } from "@brillanda/shared-types";
-import { loadSchool, newStudentRow, saveSchool, sessionStartYear, sheetId, takeAdmissionNo, type SchoolDb, type StudentRow } from "./schoolDb";
+import { loadSchool, newStudentRow, saveSchool, sessionNameOf, sessionStartYear, sheetId, takeAdmissionNo, type SchoolDb, type StudentRow } from "./schoolDb";
 
 // Stand-ins for enrolment (packages/shared-types/src/admin.ts, DECISIONS.md F-40): enrolling one
 // student, correcting their details, moving class, leaving and readmitting, and the school's
@@ -35,7 +35,11 @@ const tidy = (value: string | null | undefined) => value?.trim().replace(/\s+/g,
 
 /** Their class in each session from the year they joined, assuming they moved up a level each year. */
 function classHistoryOf(db: SchoolDb, st: StudentRow, order: number, armName: string) {
-  const start = sessionStartYear();
+  if (st.pastClasses?.length) {
+    const now = sessionNameOf(db);
+    return st.status === "ACTIVE" && st.pastClasses.at(-1)!.sessionName !== now ? [...st.pastClasses, { sessionName: now, armName }] : st.pastClasses;
+  }
+  const start = sessionStartYear(db);
   const lastYear = st.left ? Math.min(start, Number(st.left.on.slice(0, 4)) - (Number(st.left.on.slice(5, 7)) < 9 ? 1 : 0)) : start;
   const letter = armName.slice(-1);
   const history: { sessionName: string; armName: string }[] = [];
@@ -85,7 +89,7 @@ function problemsOf(db: SchoolDb, body: EnrolStudentRequest | UpdateStudentReque
   if (!db.arms.some((a) => a.id === body.armId)) errors.armId = "Pick a class.";
   if (body.gender && body.gender !== "MALE" && body.gender !== "FEMALE") errors.gender = "Pick male or female, or leave it blank.";
   if (body.dob) {
-    const age = sessionStartYear() - Number(body.dob.slice(0, 4));
+    const age = sessionStartYear(db) - Number(body.dob.slice(0, 4));
     if (!DATE.test(body.dob) || Number.isNaN(Date.parse(body.dob))) errors.dob = "Check the date of birth.";
     else if (age < 5 || age > 25) errors.dob = "That makes them " + age + " years old. Check the year.";
   }
@@ -153,7 +157,7 @@ function checkImport(db: SchoolDb, body: ImportStudentsRequest): ImportStudentsR
     const dob = readDate(row.dob ?? "");
     if (dob === undefined) problems.dob = `Can't read “${row.dob.trim()}”. Write it day first, e.g. 14/03/2014.`;
     else if (dob) {
-      const age = sessionStartYear() - Number(dob.slice(0, 4));
+      const age = sessionStartYear(db) - Number(dob.slice(0, 4));
       if (age < 5 || age > 25) problems.dob = `That makes them ${age}. Check the year.`;
     }
     const email = tidy(row.guardianEmail);
@@ -178,7 +182,7 @@ function checkImport(db: SchoolDb, body: ImportStudentsRequest): ImportStudentsR
     }
 
     const ok = Object.keys(problems).length === 0;
-    const admissionNo = given ?? (ok ? formatAdmissionNo(db.admission, sessionStartYear(), next++) : null);
+    const admissionNo = given ?? (ok ? formatAdmissionNo(db.admission, sessionStartYear(db), next++) : null);
     if (!ok || body.check) return { row: index, status: ok ? "READY" : "PROBLEM", problems, armName: arm?.name ?? null, admissionNo };
 
     const invite = body.inviteParents && !!email;
@@ -318,8 +322,9 @@ export const studentHandlers = [
 
   http.get("/api/v1/admin/admission-numbers", async ({ request }) => {
     await delay();
-    const { admission } = loadSchool(request);
-    return HttpResponse.json<AdmissionNumberSettings>({ ...admission, year: sessionStartYear(), preview: formatAdmissionNo(admission, sessionStartYear(), admission.next) });
+    const db = loadSchool(request);
+    const { admission } = db;
+    return HttpResponse.json<AdmissionNumberSettings>({ ...admission, year: sessionStartYear(db), preview: formatAdmissionNo(admission, sessionStartYear(db), admission.next) });
   }),
 
   http.put("/api/v1/admin/admission-numbers", async ({ request }) => {
@@ -330,11 +335,11 @@ export const studentHandlers = [
     if (problems.length) return invalid({ pattern: problems[0]! });
     if (!Number.isInteger(body.next) || body.next < 1) return invalid({ next: "Start from a whole number, 1 or more." });
     const db = loadSchool(request);
-    const preview = formatAdmissionNo(format, sessionStartYear(), body.next);
+    const preview = formatAdmissionNo(format, sessionStartYear(db), body.next);
     const taken = db.students.find((s) => sameAdmissionNo(s.admissionNo, preview));
     if (taken) return invalid({ next: `${taken.fullName} already has ${preview}. Start from a higher number.` });
     db.admission = { ...format, next: body.next };
     saveSchool(db);
-    return HttpResponse.json<AdmissionNumberSettings>({ ...db.admission, year: sessionStartYear(), preview });
+    return HttpResponse.json<AdmissionNumberSettings>({ ...db.admission, year: sessionStartYear(db), preview });
   }),
 ];

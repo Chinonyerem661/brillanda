@@ -1,4 +1,4 @@
-import { defaultAdmissionPattern, formatAdmissionNo, type EntryState, type Gender, type GradeBand, type GuardianDetails, type ParentStatus, type SchoolProfile, type SessionTerm, type StudentEvent, type StudentNote, type StudentStatus, type TermDates, type TermRef } from "@brillanda/shared-types";
+import { defaultAdmissionPattern, formatAdmissionNo, type EntryState, type Gender, type GradeBand, type GuardianDetails, type ParentStatus, type SchoolProfile, type PromotionDecision, type SessionTerm, type StudentEvent, type StudentNote, type StudentStatus, type TermDates, type TermRef } from "@brillanda/shared-types";
 import { MOCK_COMPONENTS, MOCK_GRADING_SCALE, MOCK_TERM } from "./db";
 
 // Stand-in data for the school admin portal (DECISIONS.md D-7, F-37): one whole school, 12 arms
@@ -39,6 +39,8 @@ export type StudentRow = {
   photoUrl?: string | null;
   events?: StudentEvent[];
   notes?: StudentNote[];
+  /** Their class in each finished session, recorded at promotion (F-44); before that it's worked out. */
+  pastClasses?: { sessionName: string; armName: string }[];
 };
 
 /** Where the school is in getting set up. `imported` is set by the student import (step 4). */
@@ -66,7 +68,9 @@ export type SchoolDb = {
   /** Published terms a parent has opened, as `${studentId}:${termId}` (the parent portal's "New" markers). */
   parentSeen: string[];
   /** This session's terms (F-43). Filled in by loadSchool for records saved before sessions. */
-  session: { terms: SessionTerm[] };
+  session: { startYear?: number; terms: SessionTerm[] };
+  /** The pass mark for moving up a class at the end of a session, and decisions changed by hand (F-44). */
+  promotion?: { passMark: number | null; decisions: Record<string, { decision: PromotionDecision; reason: string | null }> };
   /** Terms closed this session, with their sheets and publishing as they were at closing. */
   closedTerms: ClosedTerm[];
 };
@@ -87,11 +91,12 @@ export const TERM = MOCK_TERM;
 export const TERM_NAMES = ["First Term", "Second Term", "Third Term"];
 const TERM_IDS = ["first", "second", "third"];
 
-/** This session's three terms, the first one current, from the current term's dates. */
-function defaultSession(dates: TermDates): SchoolDb["session"] {
+/** A session's three terms, the first one current, from that term's dates. */
+export function defaultSession(dates: Pick<TermDates, "startsOn" | "endsOn">, startYear = SESSION_START_YEAR): SchoolDb["session"] {
   return {
+    startYear,
     terms: TERM_NAMES.map((name, i) => ({
-      id: `term-${TERM_IDS[i]}-${SESSION_START_YEAR}`,
+      id: `term-${TERM_IDS[i]}-${startYear}`,
       name,
       status: i === 0 ? "CURRENT" : "UPCOMING",
       startsOn: i === 0 ? dates.startsOn : null,
@@ -118,8 +123,11 @@ export function asClosed(db: SchoolDb, closed: ClosedTerm): SchoolDb {
 export function termOf(db: SchoolDb): TermRef {
   const terms = db.session.terms;
   const t = terms.find((x) => x.status === "CURRENT") ?? [...terms].reverse().find((x) => x.status === "CLOSED") ?? terms[0]!;
-  return { id: t.id, name: t.name, sessionName: `${SESSION_START_YEAR}/${SESSION_START_YEAR + 1}` };
+  return { id: t.id, name: t.name, sessionName: sessionNameOf(db) };
 }
+
+/** "2026/2027" for the session a school is in. */
+export const sessionNameOf = (db: SchoolDb) => `${sessionStartYear(db)}/${sessionStartYear(db) + 1}`;
 
 export function rng(seed: number) {
   return () => {
@@ -134,7 +142,9 @@ const FIRST = ["Adaeze", "Ifeanyi", "Tolu", "Zainab", "David", "Chisom", "Emeka"
 const LAST = ["Adeyemi", "Bello", "Eze", "Nwosu", "Okon", "Danjuma", "Ibe", "Lawal", "Adewale", "Obi", "Yusuf", "Etim", "Nnaji", "Balogun", "Uzor", "Ogunleye", "Abubakar", "Chukwu", "Ojo", "Afolabi", "Onyeka", "Salami", "Mohammed", "Olatunji", "Akande", "Nwachukwu", "Oyelaran", "Ekanem", "Okoro", "Ajayi"];
 
 const FEMALE = new Set(["Adaeze", "Zainab", "Chisom", "Fatima", "Kemi", "Sade", "Halima", "Amaka", "Blessing", "Aisha", "Nneka", "Bisola", "Temi", "Ada", "Funke", "Nkechi", "Ireti", "Hauwa", "Precious", "Esther", "Grace", "Ruth", "Deborah", "Maryam", "Chiamaka"]);
-const SESSION_START_YEAR = Number(MOCK_TERM.sessionName.slice(0, 4));
+/** The year both sample schools are in when first seeded. Earlier sessions are made-up history. */
+export const SAMPLE_START_YEAR = Number(MOCK_TERM.sessionName.slice(0, 4));
+const SESSION_START_YEAR = SAMPLE_START_YEAR;
 
 /** A seeded student with believable details: JSS 1 joined this year, SS 3 five years ago. */
 function sampleStudent(r: () => number, { id, fullName, armId, classOrder, linked }: { id: string; fullName: string; armId: string; classOrder: number; linked: boolean }): StudentRow {
@@ -295,7 +305,7 @@ function seed(now = Date.now()): SchoolDb {
     ],
     published: {},
     parentSeen: [],
-    session: defaultSession({ startsOn: iso(now - 74 * DAY), endsOn: iso(now + 16 * DAY), scoresDueOn: "", nextTermBegins: null }),
+    session: defaultSession({ startsOn: iso(now - 74 * DAY), endsOn: iso(now + 16 * DAY) }),
     closedTerms: [],
   };
 }
@@ -337,17 +347,18 @@ function seedNewSchool(now = Date.now()): SchoolDb {
     unlocks: [],
     published: {},
     parentSeen: [],
-    session: defaultSession({ startsOn: iso(now - 7 * DAY), endsOn: iso(now + 83 * DAY), scoresDueOn: "", nextTermBegins: null }),
+    session: defaultSession({ startsOn: iso(now - 7 * DAY), endsOn: iso(now + 83 * DAY) }),
     closedTerms: [],
   };
 }
 
 /** The next admission number in the school's format; takes it, so call once per student. */
 export function takeAdmissionNo(db: SchoolDb): string {
-  return formatAdmissionNo(db.admission, SESSION_START_YEAR, db.admission.next++);
+  return formatAdmissionNo(db.admission, sessionStartYear(db), db.admission.next++);
 }
 
-export const sessionStartYear = () => SESSION_START_YEAR;
+/** The first year of the session a school is in: 2026 for 2026/2027. */
+export const sessionStartYear = (db?: SchoolDb) => db?.session.startYear ?? SESSION_START_YEAR;
 
 /** A newly enrolled student, active from `joinedOn`. */
 export function newStudentRow(fields: Pick<StudentRow, "id" | "fullName" | "admissionNo" | "armId"> & Partial<StudentRow>): StudentRow {
