@@ -13,6 +13,7 @@ import { SelectField, TextField } from "../../shared/components/TextField";
 import { toast } from "../../shared/components/Toast";
 import { useLook } from "../../shared/theme/useLook";
 import { cx } from "../../shared/utils/cx";
+import { SessionSection } from "./SessionSettings";
 import { useAdmissionNumbers, useGradingScale, useRemoveLogo, useSaveAdmissionNumbers, useSaveScale, useSaveSchool, useSaveTerm, useSchoolProfile, useTermDates, useUploadLogo } from "./api";
 
 type Tab = "SCHOOL" | "NUMBERS" | "SCALE" | "TERM" | "LOOK";
@@ -28,13 +29,13 @@ export function SettingsPage() {
     <>
       <PageHeader title="Settings" />
       <div className="mb-5">
-        <FilterTabs label="Settings" value={tab} onChange={setTab} items={[{ value: "SCHOOL", label: "School" }, { value: "NUMBERS", label: "Admission numbers" }, { value: "SCALE", label: "Grading scale" }, { value: "TERM", label: "Term dates" }, { value: "LOOK", label: "Look" }]} />
+        <FilterTabs label="Settings" value={tab} onChange={setTab} items={[{ value: "SCHOOL", label: "School" }, { value: "NUMBERS", label: "Admission numbers" }, { value: "SCALE", label: "Grading scale" }, { value: "TERM", label: "Session" }, { value: "LOOK", label: "Look" }]} />
       </div>
       <div className="max-w-2xl">
         {tab === "SCHOOL" && <SchoolTab />}
         {tab === "NUMBERS" && <NumbersTab />}
         {tab === "SCALE" && <ScaleTab />}
-        {tab === "TERM" && <TermTab />}
+        {tab === "TERM" && <SessionSection><TermTab /></SessionSection>}
         {tab === "LOOK" && <LookTab />}
       </div>
     </>
@@ -232,7 +233,8 @@ function TermTab() {
   const term = useTermDates();
   if (term.isPending) return <PageSpinner />;
   if (term.error) return <Alert tone="danger">{term.error.message}</Alert>;
-  return <TermForm initial={term.data} />;
+  // Keyed so the form starts afresh when a new term begins.
+  return <TermForm key={term.data.startsOn} initial={term.data} />;
 }
 
 function TermForm({ initial }: { initial: TermDates }) {
@@ -246,7 +248,8 @@ function TermForm({ initial }: { initial: TermDates }) {
     <TextField label={label} type="date" value={form[key]} onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))} error={fieldError(save.error, key)} hint={hint} />
   );
   return (
-    <Card title="Term dates" description="The current term.">
+    <Card title="This term's dates" description="Change them if the calendar moves.">
+
       <form onSubmit={submit} className="grid gap-4" noValidate>
         <div className="grid gap-4 sm:grid-cols-2">{field("startsOn", "Term starts")}{field("endsOn", "Term ends")}</div>
         {field("scoresDueOn", "Scores due", "Teachers see this on their home screen and get a reminder three days before.")}

@@ -26,6 +26,11 @@ export type TermResult = {
   principalRemark: string | null;
   /** False until the parent has opened it: drives the "New" markers. */
   seen: boolean;
+  /**
+   * Staff views only: the term closed before every subject was complete (F-43). The average covers
+   * the complete subjects and there is no position. Parents never see such a term.
+   */
+  unfinished?: boolean;
 };
 
 /** GET /parent/children */

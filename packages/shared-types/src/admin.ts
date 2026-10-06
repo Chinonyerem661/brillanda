@@ -278,6 +278,27 @@ export type TermDates = { startsOn: string; endsOn: string; scoresDueOn: string;
 /** GET and PUT /admin/grading-scale (scoped to the session, F-2). */
 export type GradingScaleBody = { bands: GradeBand[] };
 
+// ---- The school year (DECISIONS.md F-43) ----
+
+export type TermStatus = "CLOSED" | "CURRENT" | "UPCOMING";
+export type SessionTerm = { id: string; name: string; status: TermStatus; startsOn: string | null; endsOn: string | null; closedOn: string | null };
+
+/** GET /admin/session: this session's terms, and the classes not yet published this term. */
+export type SessionInfo = {
+  name: string;
+  terms: SessionTerm[];
+  unpublishedArms: { id: string; name: string }[];
+};
+
+/**
+ * POST /admin/session/close-term: closes the current term and starts the next one with `next`'s
+ * dates. Closing locks every score; results stay on students' records and, where published, with
+ * parents. Refused (409) while classes are unpublished, unless `closeUnpublished`. The last term of
+ * a session closes through promotion instead (F-44).
+ */
+export type CloseTermRequest = { next: TermDates; closeUnpublished: boolean };
+export type CloseTermResponse = { closed: TermRef; started: TermRef };
+
 // ---- Getting a new school set up (Onboarding Flow §3, DECISIONS.md F-39) ----
 // The Brillanda team creates the school with working defaults (F-36); nothing here blocks using it.
 

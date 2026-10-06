@@ -1,4 +1,4 @@
-import { defaultAdmissionPattern, formatAdmissionNo, type EntryState, type Gender, type GradeBand, type GuardianDetails, type ParentStatus, type SchoolProfile, type StudentEvent, type StudentNote, type StudentStatus, type TermDates } from "@brillanda/shared-types";
+import { defaultAdmissionPattern, formatAdmissionNo, type EntryState, type Gender, type GradeBand, type GuardianDetails, type ParentStatus, type SchoolProfile, type SessionTerm, type StudentEvent, type StudentNote, type StudentStatus, type TermDates, type TermRef } from "@brillanda/shared-types";
 import { MOCK_COMPONENTS, MOCK_GRADING_SCALE, MOCK_TERM } from "./db";
 
 // Stand-in data for the school admin portal (DECISIONS.md D-7, F-37): one whole school, 12 arms
@@ -65,7 +65,14 @@ export type SchoolDb = {
   published: Record<string, string>;
   /** Published terms a parent has opened, as `${studentId}:${termId}` (the parent portal's "New" markers). */
   parentSeen: string[];
+  /** This session's terms (F-43). Filled in by loadSchool for records saved before sessions. */
+  session: { terms: SessionTerm[] };
+  /** Terms closed this session, with their sheets and publishing as they were at closing. */
+  closedTerms: ClosedTerm[];
 };
+
+/** A closed term kept whole, so its results can still be worked out. `armOf` is each student's arm then. */
+export type ClosedTerm = { term: TermRef; sheets: Record<string, Sheet>; published: Record<string, string>; armOf: Record<string, string> };
 
 /** The sample parent's children: real students of the sample school, so publishing reaches them. */
 export const SAMPLE_CHILDREN = [
@@ -75,7 +82,44 @@ export const SAMPLE_CHILDREN = [
 
 export const sheetId = (armId: string, subjectId: string) => `${armId}:${subjectId}`;
 export const COMPONENTS = MOCK_COMPONENTS;
+/** The first term of the sample session; use termOf(db) for the term a school is in now. */
 export const TERM = MOCK_TERM;
+export const TERM_NAMES = ["First Term", "Second Term", "Third Term"];
+const TERM_IDS = ["first", "second", "third"];
+
+/** This session's three terms, the first one current, from the current term's dates. */
+function defaultSession(dates: TermDates): SchoolDb["session"] {
+  return {
+    terms: TERM_NAMES.map((name, i) => ({
+      id: `term-${TERM_IDS[i]}-${SESSION_START_YEAR}`,
+      name,
+      status: i === 0 ? "CURRENT" : "UPCOMING",
+      startsOn: i === 0 ? dates.startsOn : null,
+      endsOn: i === 0 ? dates.endsOn : null,
+      closedOn: null,
+    })),
+  };
+}
+
+/**
+ * The school as it was when a term closed, for working out that term's results: that term's sheets
+ * and publishing, and each student in the arm they were in then. Students who joined later are left out.
+ */
+export function asClosed(db: SchoolDb, closed: ClosedTerm): SchoolDb {
+  return {
+    ...db,
+    sheets: closed.sheets,
+    published: closed.published,
+    students: db.students.map((s) => (closed.armOf[s.id] ? { ...s, armId: closed.armOf[s.id]!, status: "ACTIVE" } : { ...s, status: "WITHDRAWN" })),
+  };
+}
+
+/** The term the school is in now: the current one, or the last closed one between terms. */
+export function termOf(db: SchoolDb): TermRef {
+  const terms = db.session.terms;
+  const t = terms.find((x) => x.status === "CURRENT") ?? [...terms].reverse().find((x) => x.status === "CLOSED") ?? terms[0]!;
+  return { id: t.id, name: t.name, sessionName: `${SESSION_START_YEAR}/${SESSION_START_YEAR + 1}` };
+}
 
 export function rng(seed: number) {
   return () => {
@@ -251,6 +295,8 @@ function seed(now = Date.now()): SchoolDb {
     ],
     published: {},
     parentSeen: [],
+    session: defaultSession({ startsOn: iso(now - 74 * DAY), endsOn: iso(now + 16 * DAY), scoresDueOn: "", nextTermBegins: null }),
+    closedTerms: [],
   };
 }
 
@@ -291,6 +337,8 @@ function seedNewSchool(now = Date.now()): SchoolDb {
     unlocks: [],
     published: {},
     parentSeen: [],
+    session: defaultSession({ startsOn: iso(now - 7 * DAY), endsOn: iso(now + 83 * DAY), scoresDueOn: "", nextTermBegins: null }),
+    closedTerms: [],
   };
 }
 
@@ -325,7 +373,12 @@ export function loadSchool(request?: Request): SchoolDb {
   try {
     const saved = localStorage.getItem(STORAGE_KEYS[key]);
     // Saved before schools had an id or setup state: an established school.
-    if (saved) return { id: key, setup: SETUP_FINISHED, ...(JSON.parse(saved) as Partial<SchoolDb>) } as SchoolDb;
+    if (saved) {
+      const db = { id: key, setup: SETUP_FINISHED, ...(JSON.parse(saved) as Partial<SchoolDb>) } as SchoolDb;
+      db.session ??= defaultSession(db.term);
+      db.closedTerms ??= [];
+      return db;
+    }
   } catch {
     // Unreadable or blocked storage: start again from the seed.
   }

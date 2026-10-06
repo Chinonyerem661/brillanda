@@ -9,9 +9,9 @@ import {
   type StudentResults,
   type TermResult,
 } from "@brillanda/shared-types";
-import { armResults, cellsOf, remarksFor } from "./adminHandlers";
+import { armResults, cellsOf, remarksFor, reportCard } from "./adminHandlers";
 import { HISTORY } from "./parentHandlers";
-import { COMPONENTS, loadSchool, rng, saveSchool, sessionStartYear, sheetId, TERM, type SchoolDb, type StudentRow } from "./schoolDb";
+import { asClosed, COMPONENTS, loadSchool, rng, saveSchool, sessionStartYear, sheetId, termOf, type SchoolDb, type StudentRow } from "./schoolDb";
 import { studentRecord } from "./studentHandlers";
 
 // Stand-ins for a student's own page (DECISIONS.md F-42): results this term and in every term
@@ -91,6 +91,30 @@ export function pastTerms(db: SchoolDb, st: StudentRow): TermResult[] {
       out.push(termResult(db, { year, term, armName, totals, position, of, first }));
     }
   });
+  // Terms closed this session, worked out from their sheets as they were.
+  for (const ct of db.closedTerms) {
+    if (!ct.armOf[st.id]) continue;
+    const view = asClosed(db, ct);
+    const card = reportCard(view, st.id, ct.term);
+    if (!card) continue;
+    // A class that wasn't finished when the term closed: average the complete subjects only.
+    const unfinished = !armResults(view, ct.armOf[st.id]!).complete;
+    const completeTotals = card.subjects.filter((s) => s.scores.every((c) => c.value !== null || c.isAbsent)).map((s) => s.total);
+    if (unfinished && !completeTotals.length) continue;
+    out.push({
+      term: ct.term,
+      armName: card.student.armName,
+      publishedAt: ct.published[ct.armOf[st.id]!] ?? new Date().toISOString(),
+      average: unfinished ? Math.round((completeTotals.reduce((a, b) => a + b, 0) / completeTotals.length) * 100) / 100 : card.average,
+      ...(unfinished ? { unfinished } : {}),
+      position: unfinished ? 0 : card.position,
+      of: card.of,
+      subjects: card.subjects.map((s) => ({ ...s, teacherName: null })),
+      classTeacherRemark: card.classTeacherRemark,
+      principalRemark: card.principalRemark,
+      seen: true,
+    });
+  }
   return out;
 }
 
@@ -99,7 +123,7 @@ function currentTerm(db: SchoolDb, st: StudentRow): StudentResults["current"] {
   const arm = db.arms.find((a) => a.id === st.armId)!;
   const results = armResults(db, arm.id);
   return {
-    term: TERM,
+    term: termOf(db),
     armName: arm.name,
     published: !!db.published[arm.id],
     subjects: db.subjects.map((s) => {

@@ -1,7 +1,7 @@
 import { delay, http, HttpResponse } from "msw";
 import { resolveGrade, type ChildResults, type ChildSummary, type ReportCard, type SchoolNotice, type TermResult } from "@brillanda/shared-types";
 import { reportCard } from "./adminHandlers";
-import { COMPONENTS, loadSchool, SAMPLE_CHILDREN, saveSchool, sheetId, TERM, type SchoolDb } from "./schoolDb";
+import { asClosed, COMPONENTS, loadSchool, SAMPLE_CHILDREN, saveSchool, sheetId, termOf, type SchoolDb } from "./schoolDb";
 
 // Stand-ins for the endpoints in packages/shared-types/src/parent.ts (DECISIONS.md F-38). Last
 // session's three terms are fixed history; this term comes from the sample school, so it appears
@@ -61,14 +61,14 @@ function historyTerms(db: SchoolDb, childId: string): TermResult[] {
   }));
 }
 
-/** This term, once the school has published the child's class. */
-function currentTerm(db: SchoolDb, childId: string): TermResult | null {
+/** This term once the school has published the child's class, or a closed term when `db` is one (asClosed). */
+function currentTerm(db: SchoolDb, childId: string, term = termOf(db)): TermResult | null {
   const student = db.students.find((s) => s.id === childId)!;
   const publishedAt = db.published[student.armId];
   if (!publishedAt) return null;
-  const card = reportCard(db, childId)!;
+  const card = reportCard(db, childId, term)!;
   return {
-    term: TERM,
+    term,
     armName: card.student.armName,
     publishedAt,
     average: card.average,
@@ -80,14 +80,16 @@ function currentTerm(db: SchoolDb, childId: string): TermResult | null {
     })),
     classTeacherRemark: card.classTeacherRemark,
     principalRemark: card.principalRemark,
-    seen: db.parentSeen.includes(`${childId}:${TERM.id}`),
+    seen: db.parentSeen.includes(`${childId}:${term.id}`),
   };
 }
 
 function results(db: SchoolDb, childId: string): ChildResults {
   const child = SAMPLE_CHILDREN.find((c) => c.id === childId)!;
   const now = currentTerm(db, childId);
-  const terms = [...historyTerms(db, childId), ...(now ? [now] : [])];
+  // Terms closed this session, where the child's class was published before closing.
+  const closed = db.closedTerms.flatMap((ct) => (ct.armOf[childId] ? [currentTerm(asClosed(db, ct), childId, ct.term)] : [])).filter((t): t is TermResult => !!t);
+  const terms = [...historyTerms(db, childId), ...closed, ...(now ? [now] : [])];
   const last = terms[terms.length - 1]!;
   const arm = db.arms.find((a) => a.id === child.armId)!;
   return {
@@ -100,7 +102,7 @@ function results(db: SchoolDb, childId: string): ChildResults {
       latest: { termId: last.term.id, label: `${last.term.name}, ${last.term.sessionName}`, average: last.average, position: last.position, of: last.of, seen: last.seen },
     },
     terms,
-    currentTerm: now ? null : { term: TERM, published: false },
+    currentTerm: now ? null : { term: termOf(db), published: false },
   };
 }
 

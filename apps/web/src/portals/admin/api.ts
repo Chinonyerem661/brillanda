@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   AdmissionNumberSettings,
+  CloseTermRequest,
+  CloseTermResponse,
+  SessionInfo,
   EnrolStudentRequest,
   EnrolStudentResponse,
   ImportStudentsRequest,
@@ -77,6 +80,7 @@ export const usePastReportCard = (studentId: string, termId: string | null) =>
     queryFn: () => api<ReportCard>(`/admin/students/${encodeURIComponent(studentId)}/report-cards/${encodeURIComponent(termId!)}`),
     enabled: !!termId,
   });
+export const useSession = () => useQuery({ queryKey: [...KEY, "session"], queryFn: () => api<SessionInfo>("/admin/session") });
 export const useAdmissionNumbers = () => useQuery({ queryKey: adminKeys.admissionNumbers, queryFn: () => api<AdmissionNumberSettings>("/admin/admission-numbers") });
 
 /** A change can move any figure on any admin page, so everything admin is refreshed. */
@@ -117,6 +121,9 @@ export const useCheckImport = () => useMutation({ mutationFn: (body: Omit<Import
 export const useImportStudents = () =>
   useAdminMutation((body: Omit<ImportStudentsRequest, "check">) => send<ImportStudentsResponse>("/admin/students/import", "POST", { ...body, check: false }));
 export const useReadmit = () => useAdminMutation((id: string) => send<StudentRecord>(`/admin/students/${encodeURIComponent(id)}/readmit`, "POST"));
+// The school year (F-43).
+export const useCloseTerm = () => useAdminMutation((body: CloseTermRequest) => send<CloseTermResponse>("/admin/session/close-term", "POST", body));
+
 // A student's own page (F-42).
 export const useAddNote = () =>
   useAdminMutation(({ id, text }: { id: string; text: string }) => send<StudentNote>(`/admin/students/${encodeURIComponent(id)}/notes`, "POST", { text }));

@@ -273,10 +273,12 @@ function Results({ student: s }: { student: StudentRecord }) {
   if (!past.length) return <EmptyState title="No results yet">{first(s.fullName)}'s results appear here once their first term is published.</EmptyState>;
 
   const sessions = [...new Set(past.map((t) => t.term.sessionName))].reverse();
+  // Unfinished terms would drag the line down with subjects nobody entered.
+  const charted = past.filter((t) => !t.unfinished);
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-      <Card title="Average by term" description={past.length > 9 ? `The last 9 of ${past.length} terms` : plural(past.length, "published term")}>
-        <TrendChart terms={past.slice(-9)} />
+      <Card title="Average by term" description={charted.length > 9 ? `The last 9 of ${charted.length} terms` : plural(charted.length, "term")}>
+        {charted.length ? <TrendChart terms={charted.slice(-9)} /> : <p className="text-sm text-text-secondary">No finished terms yet.</p>}
       </Card>
       <div className="grid min-w-0 content-start gap-4">
         {sessions.map((session) => (
@@ -287,7 +289,9 @@ function Results({ student: s }: { student: StudentRecord }) {
                   <button type="button" onClick={() => setOpen(t)} className="grid w-full grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-xl px-2.5 py-2 text-left text-sm hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
                     <span className="font-medium">{t.term.name}</span>
                     <span className="tabular-nums text-text-secondary">{t.average.toFixed(1)}</span>
-                    <span className="w-[4.5rem] text-right tabular-nums">{ordinal(t.position)} of {t.of}</span>
+                    <span className="w-[5.5rem] text-right tabular-nums">
+                      {t.unfinished ? <span className="text-text-muted" title="Some subjects weren't complete when the term closed">Unfinished</span> : t.position ? `${ordinal(t.position)} of ${t.of}` : <span className="text-text-muted">Not ranked</span>}
+                    </span>
                   </button>
                 </li>
               ))}

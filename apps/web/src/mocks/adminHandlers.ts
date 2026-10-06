@@ -22,8 +22,9 @@ import {
   type SendRemindersRequest,
   type StaffMember,
   type TermDates,
+  type TermRef,
 } from "@brillanda/shared-types";
-import { COMPONENTS, loadSchool, saveSchool, sheetId, TERM, type Cell, type SchoolDb } from "./schoolDb";
+import { COMPONENTS, loadSchool, saveSchool, sheetId, termOf, type Cell, type SchoolDb } from "./schoolDb";
 
 // Stand-ins for the endpoints in packages/shared-types/src/admin.ts (DECISIONS.md F-37). Totals,
 // grades and positions come from the shared grading code, exactly as the API will compute them.
@@ -94,14 +95,15 @@ export function remarksFor(first: string, average: number) {
   return { classTeacherRemark: `${first} needs more support, especially in the weaker subjects.`, principalRemark: "Let us work together at home and in school to improve next term." };
 }
 
-export function reportCard(db: SchoolDb, studentId: string): ReportCard | null {
+/** A student's report card for the current term, or for `term` when `db` is a closed term (asClosed). */
+export function reportCard(db: SchoolDb, studentId: string, term: TermRef = termOf(db)): ReportCard | null {
   const student = db.students.find((s) => s.id === studentId);
   if (!student) return null;
   const arm = db.arms.find((a) => a.id === student.armId)!;
   const results = armResults(db, arm.id);
   return {
     school: db.profile,
-    term: TERM,
+    term,
     student: { id: student.id, fullName: student.fullName, admissionNo: student.admissionNo, armName: arm.name },
     subjects: db.subjects.map((s, i) => {
       const row = db.sheets[sheetId(arm.id, s.id)]!.scores[student.id] ?? [null, null, null];
@@ -133,7 +135,7 @@ export function adminSheet(db: SchoolDb, armId: string, subjectId: string): Admi
   return {
     arm: { id: arm.id, name: arm.name, className: classOf(db, arm.id).name },
     subject,
-    term: TERM,
+    term: termOf(db),
     status: sheet.status,
     components: COMPONENTS,
     gradingScale: db.scale,
@@ -164,7 +166,7 @@ export const adminHandlers = [
     const weekNumber = Math.max(1, Math.min(13, Math.floor((Date.now() - started) / (7 * 86_400_000)) + 1));
     const curve = [0, 0, 0.03, 0.07, 0.13, 0.2, 0.32, 0.48, 0.68, 0.88, 1, 1, 1];
     return HttpResponse.json<AdminOverview>({
-      term: TERM,
+      term: termOf(db),
       week: { number: weekNumber, of: 13 },
       scoresDueAt: db.term.scoresDueOn,
       sheets: { total: statuses.length, complete, inProgress: statuses.filter((s) => s === "IN_PROGRESS").length, notStarted: statuses.filter((s) => s === "NOT_STARTED").length },

@@ -33,7 +33,7 @@ export function TrendChart({ terms }: { terms: TermResult[] }) {
       <path d={line} fill="none" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" pathLength={1} className="[stroke-dasharray:1] [stroke-dashoffset:1] animate-[draw-line_1.5s_cubic-bezier(0.2,0.8,0.2,1)_200ms_forwards]" style={{ stroke: "var(--color-chart)" }} />
       {terms.map((t, i) => (
         <g key={t.term.id + t.term.sessionName}>
-          <title>{`${termLabel(t)}: average ${t.average.toFixed(1)}, ${t.position} of ${t.of}`}</title>
+          <title>{`${termLabel(t)}: average ${t.average.toFixed(1)}${t.position ? `, ${t.position} of ${t.of}` : ""}`}</title>
           <circle cx={x(i)} cy={y(t.average)} r={i === last ? 5.5 : 4} strokeWidth={2.5} style={{ fill: "var(--color-chart)", stroke: "var(--color-surface)" }} />
           <text x={x(i)} y={H - 6} textAnchor="middle" className="fill-text-muted text-[11px]">{t.term.name.replace(" Term", "")}{i === last && t.term.sessionName !== terms[0]!.term.sessionName ? " ’" + t.term.sessionName.slice(-2) : ""}</text>
         </g>

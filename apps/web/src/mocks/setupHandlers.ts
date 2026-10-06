@@ -8,7 +8,7 @@ import type {
   TryClassResponse,
 } from "@brillanda/shared-types";
 import { adminSheet } from "./adminHandlers";
-import { COMPONENTS, loadSchool, NEW_SCHOOL_TERMS, newStudentRow, saveSchool, sheetId, takeAdmissionNo, TERM, type Cell, type SchoolDb } from "./schoolDb";
+import { COMPONENTS, loadSchool, NEW_SCHOOL_TERMS, newStudentRow, saveSchool, sheetId, takeAdmissionNo, termOf, type Cell, type SchoolDb } from "./schoolDb";
 
 // Stand-ins for getting a new school set up (packages/shared-types/src/admin.ts, DECISIONS.md F-39),
 // and for a school admin saving scores. Delete with the rest of the stand-ins when the API ships.
@@ -26,7 +26,7 @@ export function setupStatus(db: SchoolDb): SetupStatus {
   return {
     firstRunDone: db.setup.firstRunDone,
     defaults: {
-      sessionName: TERM.sessionName,
+      sessionName: termOf(db).sessionName,
       terms: NEW_SCHOOL_TERMS,
       classes: db.classes.map((c) => c.name),
       arms: [...new Set(db.arms.map((a) => a.name.slice(-1)))],
@@ -136,7 +136,7 @@ export const setupHandlers = [
     const student = db.students.find((s) => s.id === params.studentId);
     const index = COMPONENTS.findIndex((c) => c.id === params.componentId);
     const sheet = student && db.sheets[sheetId(student.armId, body.subjectId)];
-    if (!student || index < 0 || !sheet || body.termId !== TERM.id) return HttpResponse.json({ error: "Not found" }, { status: 404 });
+    if (!student || index < 0 || !sheet || body.termId !== termOf(db).id) return HttpResponse.json({ error: "Not found" }, { status: 404 });
     if (sheet.status === "LOCKED") return HttpResponse.json({ error: "These scores are locked." }, { status: 409 });
 
     const max = COMPONENTS[index]!.maxScore;
