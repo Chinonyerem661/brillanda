@@ -11,7 +11,7 @@ const DAY = 86_400_000;
 const notFound = () => HttpResponse.json({ error: "Not found" }, { status: 404 });
 
 /** Last session, per child: the class they were in, class size, and each term's position and totals. */
-const HISTORY: Record<string, { arm: string; of: number; terms: { id: string; name: string; position: number; totals: number[]; remark: string; principal: string }[] }> = {
+export const HISTORY: Record<string, { arm: string; of: number; terms: { id: string; name: string; position: number; totals: number[]; remark: string; principal: string }[] }> = {
   "student-chiamaka": {
     arm: "JSS 1B",
     of: 32,

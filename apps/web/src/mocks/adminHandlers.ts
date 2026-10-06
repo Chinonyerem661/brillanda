@@ -33,9 +33,9 @@ const notFound = () => HttpResponse.json({ error: "Not found" }, { status: 404 }
 const invalid = (fields: Record<string, string>) =>
   HttpResponse.json({ error: "Check the highlighted fields.", fields: Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, [v]])) }, { status: 400 });
 
-const isDone = (status: EntryState) => status === "COMPLETE" || status === "LOCKED";
+export const isDone = (status: EntryState) => status === "COMPLETE" || status === "LOCKED";
 const toCell = (cell: Cell): CellValue | null => (cell === null ? null : cell === "ABS" ? { value: 0, isAbsent: true } : { value: cell, isAbsent: false });
-const cellsOf = (row: [Cell, Cell, Cell]) => Object.fromEntries(COMPONENTS.map((c, i) => [c.id, toCell(row[i]!)]));
+export const cellsOf = (row: [Cell, Cell, Cell]) => Object.fromEntries(COMPONENTS.map((c, i) => [c.id, toCell(row[i]!)]));
 const person = (db: SchoolDb, id: string | undefined) => {
   const found = db.staff.find((s) => s.id === id);
   return found ? { id: found.id, fullName: found.fullName } : null;
@@ -76,7 +76,7 @@ function armSummary(db: SchoolDb, armId: string): ArmSummary {
 }
 
 /** Each student's subject totals, and (once every subject is in) average and position. */
-function armResults(db: SchoolDb, armId: string) {
+export function armResults(db: SchoolDb, armId: string) {
   const list = studentsIn(db, armId);
   const totals = new Map(
     list.map((st) => [st.id, db.subjects.map((s) => computeSubjectTotal(COMPONENTS, cellsOf(db.sheets[sheetId(armId, s.id)]!.scores[st.id] ?? [null, null, null])).total)]),
@@ -88,7 +88,7 @@ function armResults(db: SchoolDb, armId: string) {
 }
 
 /** Sample remarks that fit the result; the real ones are typed by teachers and the principal. */
-function remarksFor(first: string, average: number) {
+export function remarksFor(first: string, average: number) {
   if (average >= 70) return { classTeacherRemark: `${first} has done excellent work this term.`, principalRemark: "An excellent term. Keep it up." };
   if (average >= 55) return { classTeacherRemark: `${first} has worked steadily this term.`, principalRemark: "A good term. Keep working hard." };
   return { classTeacherRemark: `${first} needs more support, especially in the weaker subjects.`, principalRemark: "Let us work together at home and in school to improve next term." };
@@ -311,6 +311,7 @@ export const adminHandlers = [
     const student = db.students.find((s) => s.id === params.id);
     if (!student) return notFound();
     student.parentStatus = "INVITED";
+    (student.events ??= []).unshift({ at: new Date().toISOString(), kind: "PARENT_INVITED", text: `Parent invited: ${body.email.trim()}` });
     saveSchool(db);
     return new HttpResponse(null, { status: 204 });
   }),

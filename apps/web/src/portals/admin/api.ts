@@ -6,7 +6,10 @@ import type {
   ImportStudentsRequest,
   ImportStudentsResponse,
   LeaveSchoolRequest,
+  StudentNote,
+  StudentPhotoResponse,
   StudentRecord,
+  StudentResults,
   UpdateStudentRequest,
   AdminOverview,
   AdminSheet,
@@ -66,6 +69,14 @@ export const useGradingScale = () => useQuery({ queryKey: adminKeys.scale, query
 export const useSetup = () => useQuery({ queryKey: adminKeys.setup, queryFn: () => api<SetupStatus>("/admin/setup") });
 export const useStudent = (id: string | null) =>
   useQuery({ queryKey: adminKeys.student(id ?? ""), queryFn: () => api<StudentRecord>(`/admin/students/${encodeURIComponent(id!)}`), enabled: !!id });
+export const useStudentResults = (id: string) =>
+  useQuery({ queryKey: [...adminKeys.student(id), "results"], queryFn: () => api<StudentResults>(`/admin/students/${encodeURIComponent(id)}/results`) });
+export const usePastReportCard = (studentId: string, termId: string | null) =>
+  useQuery({
+    queryKey: [...adminKeys.student(studentId), "report-card", termId],
+    queryFn: () => api<ReportCard>(`/admin/students/${encodeURIComponent(studentId)}/report-cards/${encodeURIComponent(termId!)}`),
+    enabled: !!termId,
+  });
 export const useAdmissionNumbers = () => useQuery({ queryKey: adminKeys.admissionNumbers, queryFn: () => api<AdmissionNumberSettings>("/admin/admission-numbers") });
 
 /** A change can move any figure on any admin page, so everything admin is refreshed. */
@@ -106,6 +117,18 @@ export const useCheckImport = () => useMutation({ mutationFn: (body: Omit<Import
 export const useImportStudents = () =>
   useAdminMutation((body: Omit<ImportStudentsRequest, "check">) => send<ImportStudentsResponse>("/admin/students/import", "POST", { ...body, check: false }));
 export const useReadmit = () => useAdminMutation((id: string) => send<StudentRecord>(`/admin/students/${encodeURIComponent(id)}/readmit`, "POST"));
+// A student's own page (F-42).
+export const useAddNote = () =>
+  useAdminMutation(({ id, text }: { id: string; text: string }) => send<StudentNote>(`/admin/students/${encodeURIComponent(id)}/notes`, "POST", { text }));
+export const useDeleteNote = () =>
+  useAdminMutation(({ id, noteId }: { id: string; noteId: string }) => send<void>(`/admin/students/${encodeURIComponent(id)}/notes/${encodeURIComponent(noteId)}`, "DELETE"));
+export const useUploadStudentPhoto = () =>
+  useAdminMutation(({ id, file }: { id: string; file: File }) => {
+    const form = new FormData();
+    form.append("photo", file);
+    return send<StudentPhotoResponse>(`/admin/students/${encodeURIComponent(id)}/photo`, "POST", form);
+  });
+export const useRemoveStudentPhoto = () => useAdminMutation((id: string) => send<StudentPhotoResponse>(`/admin/students/${encodeURIComponent(id)}/photo`, "DELETE"));
 export const useSaveAdmissionNumbers = () =>
   useAdminMutation((body: AdmissionNumberSettings) => send<AdmissionNumberSettings>("/admin/admission-numbers", "PUT", body));
 

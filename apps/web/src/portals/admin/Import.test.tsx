@@ -52,7 +52,7 @@ describe("importing a student list", () => {
 
     await user.click(screen.getByRole("link", { name: "See your students" }));
     await user.type(await screen.findByRole("searchbox", { name: "Search students" }), "Amina Yusuf");
-    expect(await screen.findByRole("button", { name: /^Amina Yusuf/ })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: /^Amina Yusuf/ })).toBeInTheDocument();
   });
 
   it("ticks off the new school's checklist", { timeout: 25_000 }, async () => {

@@ -1,23 +1,19 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import type { AdminStudent } from "@brillanda/shared-types";
-import { fieldError, generalError } from "../../shared/auth/LoginPage";
 import { Alert } from "../../shared/components/Alert";
 import { Badge } from "../../shared/components/Badge";
 import { Button } from "../../shared/components/Button";
 import { EmptyState } from "../../shared/components/EmptyState";
 import { Icon } from "../../shared/components/Icon";
-import { Dialog } from "../../shared/components/Overlay";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { PageSpinner } from "../../shared/components/Spinner";
 import { FilterTabs } from "../../shared/components/Tabs";
-import { TextField } from "../../shared/components/TextField";
-import { toast } from "../../shared/components/Toast";
 import { levelStyle } from "../../shared/theme/levels";
 import { cx } from "../../shared/utils/cx";
 import { plural } from "../../shared/utils/time";
-import { SECTIONS, useInviteParent, useStudents } from "./api";
-import { EnrolDialog, LEFT_LABEL, StudentPanel } from "./enrolment";
+import { SECTIONS, useStudents } from "./api";
+import { EnrolDialog, InviteParentDialog, LEFT_LABEL } from "./enrolment";
 import { ParentBadge } from "./parts";
 
 type Show = "current" | "left";
@@ -30,7 +26,6 @@ export function StudentsPage() {
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [inviting, setInviting] = useState<Pick<AdminStudent, "id" | "fullName"> | null>(null);
   const [enrolling, setEnrolling] = useState(false);
-  const [viewing, setViewing] = useState<string | null>(null);
   const unlinkedOnly = params.get("unlinked") === "1";
   const show: Show = params.get("show") === "left" ? "left" : "current";
   const setParam = (key: string, value: string | null) =>
@@ -61,7 +56,6 @@ export function StudentsPage() {
   const overlays = (
     <>
       <EnrolDialog open={enrolling} onClose={() => setEnrolling(false)} />
-      <StudentPanel studentId={viewing} onClose={() => setViewing(null)} onInviteParent={(s) => setInviting(s)} />
       <InviteParentDialog student={inviting} onClose={() => setInviting(null)} />
     </>
   );
@@ -114,11 +108,10 @@ export function StudentsPage() {
           emptyText={words ? `Nobody called or numbered “${query.trim()}”. Check the spelling.` : "Every student has a parent linked."}
           open={open}
           setOpen={setOpen}
-          onView={setViewing}
           onInvite={setInviting}
         />
       ) : (
-        <FormerStudents students={former.filter(matchesWords)} searching={!!words} onView={setViewing} />
+        <FormerStudents students={former.filter(matchesWords)} searching={!!words} />
       )}
 
       {overlays}
@@ -126,14 +119,13 @@ export function StudentsPage() {
   );
 }
 
-function CurrentStudents({ students, armOrder, filtering, emptyText, open, setOpen, onView, onInvite }: {
+function CurrentStudents({ students, armOrder, filtering, emptyText, open, setOpen, onInvite }: {
   students: AdminStudent[];
   armOrder: AdminStudent[];
   filtering: boolean;
   emptyText: string;
   open: Set<string>;
   setOpen: (next: Set<string>) => void;
-  onView: (id: string) => void;
   onInvite: (student: AdminStudent) => void;
 }) {
   const toggle = (armId: string) => { const next = new Set(open); if (next.has(armId)) next.delete(armId); else next.add(armId); setOpen(next); };
@@ -190,10 +182,10 @@ function CurrentStudents({ students, armOrder, filtering, emptyText, open, setOp
                   <ul className="grid animate-pop gap-0.5 border-t border-divider p-2">
                     {group.list.map((s) => (
                       <li key={s.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-2xl hover:bg-hover sm:grid-cols-[minmax(0,1fr)_auto_auto]">
-                        <button type="button" onClick={() => onView(s.id)} className="grid min-w-0 grid-cols-[2.4rem_minmax(0,1fr)] items-center gap-3 rounded-2xl p-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+                        <Link to={`/admin/students/${encodeURIComponent(s.id)}`} className="grid min-w-0 grid-cols-[2.4rem_minmax(0,1fr)] items-center gap-3 rounded-2xl p-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
                           <span aria-hidden className="grid h-9 w-9 place-items-center rounded-full text-xs font-semibold" style={{ background: "var(--tint)", color: "var(--deep)" }}>{initialsOf(s.fullName)}</span>
                           <span className="min-w-0"><b className="block truncate font-medium">{s.fullName}</b><span className="text-[12.5px] text-text-secondary">{s.admissionNo}</span></span>
-                        </button>
+                        </Link>
                         <span className="hidden sm:block"><ParentBadge status={s.parentStatus} /></span>
                         <span className="flex justify-end pr-2">
                           {s.parentStatus === "NONE" && (
@@ -217,7 +209,7 @@ function CurrentStudents({ students, armOrder, filtering, emptyText, open, setOp
 }
 
 /** Students who have left, most recent first. Their records and results stay. */
-function FormerStudents({ students, searching, onView }: { students: AdminStudent[]; searching: boolean; onView: (id: string) => void }) {
+function FormerStudents({ students, searching }: { students: AdminStudent[]; searching: boolean }) {
   if (!students.length) {
     return <EmptyState title={searching ? "No students match" : "Nobody has left"}>{searching ? "Check the spelling." : "Students you mark as withdrawn, transferred or graduated appear here, with their records and results."}</EmptyState>;
   }
@@ -225,48 +217,17 @@ function FormerStudents({ students, searching, onView }: { students: AdminStuden
     <ul className="grid gap-2">
       {students.map((s) => (
         <li key={s.id}>
-          <button type="button" onClick={() => onView(s.id)} className="grid w-full grid-cols-[2.4rem_minmax(0,1fr)_auto] items-center gap-3 rounded-[20px] bg-surface p-3 text-left shadow-raised hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+          <Link to={`/admin/students/${encodeURIComponent(s.id)}`} className="grid w-full grid-cols-[2.4rem_minmax(0,1fr)_auto] items-center gap-3 rounded-[20px] bg-surface p-3 text-left shadow-raised hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
             <span aria-hidden className="grid h-9 w-9 place-items-center rounded-full bg-sunken text-xs font-semibold text-text-secondary">{initialsOf(s.fullName)}</span>
             <span className="min-w-0">
               <b className="block truncate font-medium">{s.fullName}</b>
               <span className="text-[12.5px] text-text-secondary">{s.admissionNo}, last in {s.armName}</span>
             </span>
             {s.status !== "ACTIVE" && <Badge tone="neutral">{LEFT_LABEL[s.status].title}</Badge>}
-          </button>
+          </Link>
         </li>
       ))}
     </ul>
-  );
-}
-
-function InviteParentDialog({ student, onClose }: { student: Pick<AdminStudent, "id" | "fullName"> | null; onClose: () => void }) {
-  if (!student) return null;
-  return <InviteParentForm key={student.id} student={student} onClose={onClose} />;
-}
-
-function InviteParentForm({ student, onClose }: { student: Pick<AdminStudent, "id" | "fullName">; onClose: () => void }) {
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const invite = useInviteParent();
-  const first = student.fullName.split(" ")[0];
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    invite.mutate({ studentId: student.id, fullName, email }, { onSuccess: () => { toast(`Invite sent to ${email.trim()}`); onClose(); } });
-  };
-
-  return (
-    <Dialog open onClose={onClose} title={`Invite ${first}'s parent`} description={`They'll get a link to set a password and see ${first}'s results. It works for 72 hours.`}>
-      <form onSubmit={submit} className="grid gap-4" noValidate>
-        <TextField label="Parent's name" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder={`e.g. Mrs Bola ${student.fullName.split(" ").slice(-1)[0]}`} data-autofocus error={fieldError(invite.error, "fullName")} />
-        <TextField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoCapitalize="none" spellCheck={false} error={fieldError(invite.error, "email")} hint="No email? Print an access code from the student's record instead." />
-        {generalError(invite.error) && <Alert tone="danger">{generalError(invite.error)}</Alert>}
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button type="submit" loading={invite.isPending}><Icon name="mail" className="h-4 w-4" />Send invite</Button>
-        </div>
-      </form>
-    </Dialog>
   );
 }
 

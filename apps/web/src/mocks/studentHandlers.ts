@@ -13,6 +13,7 @@ import {
   type ImportRowResult,
   type ImportStudentsRequest,
   type ImportStudentsResponse,
+  type StudentEvent,
   type LeaveSchoolRequest,
   type StudentRecord,
   type UpdateStudentRequest,
@@ -32,9 +33,26 @@ const invalid = (fields: Record<string, string>) =>
 const today = () => new Date().toISOString().slice(0, 10);
 const tidy = (value: string | null | undefined) => value?.trim().replace(/\s+/g, " ") || null;
 
+/** Their class in each session from the year they joined, assuming they moved up a level each year. */
+function classHistoryOf(db: SchoolDb, st: StudentRow, order: number, armName: string) {
+  const start = sessionStartYear();
+  const lastYear = st.left ? Math.min(start, Number(st.left.on.slice(0, 4)) - (Number(st.left.on.slice(5, 7)) < 9 ? 1 : 0)) : start;
+  const letter = armName.slice(-1);
+  const history: { sessionName: string; armName: string }[] = [];
+  for (let year = Number(st.joinedOn.slice(0, 4)) - (Number(st.joinedOn.slice(5, 7)) < 9 ? 1 : 0); year <= lastYear; year++) {
+    const cls = db.classes.find((c) => c.order === order - (lastYear - year));
+    if (cls) history.push({ sessionName: `${year}/${year + 1}`, armName: year === lastYear ? armName : `${cls.name}${letter}` });
+  }
+  return history;
+}
+
 export function studentRecord(db: SchoolDb, st: StudentRow): StudentRecord {
   const arm = db.arms.find((a) => a.id === st.armId)!;
   const cls = db.classes.find((c) => c.id === arm.classId)!;
+  const history = classHistoryOf(db, st, cls.order, arm.name);
+  // Seeded students have no stored events; their first one is joining.
+  const joined = { at: st.joinedOn, kind: "ENROLLED" as const, text: `Joined ${history[0]?.armName ?? arm.name} as ${st.admissionNo}` };
+  const events = st.events ?? [];
   return {
     id: st.id,
     fullName: st.fullName,
@@ -49,8 +67,14 @@ export function studentRecord(db: SchoolDb, st: StudentRow): StudentRecord {
     guardian: st.guardian,
     joinedOn: st.joinedOn,
     left: st.left,
+    photoUrl: st.photoUrl ?? null,
+    classHistory: history,
+    events: events.some((e) => e.kind === "ENROLLED") ? events : [...events, joined],
+    notes: st.notes ?? [],
   };
 }
+
+const event = (st: StudentRow, kind: StudentEvent["kind"], text: string) => (st.events ??= []).unshift({ at: new Date().toISOString(), kind, text });
 
 /** Field problems shared by enrolling and editing. `self` is the student being edited. */
 function problemsOf(db: SchoolDb, body: EnrolStudentRequest | UpdateStudentRequest, self?: StudentRow) {
@@ -168,6 +192,7 @@ function checkImport(db: SchoolDb, body: ImportStudentsRequest): ImportStudentsR
       joinedOn: body.joinedOn,
       guardian: { name: tidy(row.guardianName), phone, email: email?.toLowerCase() ?? null },
       parentStatus: invite ? "INVITED" : "NONE",
+      events: [{ at: body.joinedOn, kind: "ENROLLED", text: `Enrolled in ${arm!.name} as ${admissionNo} (imported)` }],
     }));
     enrolled++;
     if (invite) parentsInvited++;
@@ -226,6 +251,8 @@ export const studentHandlers = [
       guardian,
       parentStatus: invite ? "INVITED" : "NONE",
     });
+    st.events = [{ at: body.joinedOn, kind: "ENROLLED", text: `Enrolled in ${db.arms.find((a) => a.id === body.armId)!.name} as ${st.admissionNo}` }];
+    if (invite) event(st, "PARENT_INVITED", `Parent invited: ${guardian.email}`);
     db.students.push(st);
     saveSchool(db);
     return HttpResponse.json<EnrolStudentResponse>({ student: studentRecord(db, st), parentInvited: invite }, { status: 201 });
@@ -239,7 +266,10 @@ export const studentHandlers = [
     if (!st) return notFound();
     const errors = problemsOf(db, body, st);
     if (Object.keys(errors).length) return invalid(errors);
-    if (body.armId !== st.armId) moveScores(db, st.id, st.armId, body.armId);
+    if (body.armId !== st.armId) {
+      moveScores(db, st.id, st.armId, body.armId);
+      event(st, "MOVED", `Moved from ${db.arms.find((a) => a.id === st.armId)!.name} to ${db.arms.find((a) => a.id === body.armId)!.name}`);
+    } else event(st, "DETAILS_CHANGED", "Details updated");
     Object.assign(st, {
       fullName: tidy(body.fullName)!,
       admissionNo: tidy(body.admissionNo)!,
@@ -268,6 +298,7 @@ export const studentHandlers = [
     if (Object.keys(errors).length) return invalid(errors);
     st.status = body.status;
     st.left = { on: body.on, reason: tidy(body.reason) };
+    event(st, "LEFT", `${body.status === "WITHDRAWN" ? "Withdrawn" : body.status === "TRANSFERRED" ? "Transferred" : "Graduated"}${st.left.reason ? `: ${st.left.reason}` : ""}`);
     saveSchool(db);
     return HttpResponse.json<StudentRecord>(studentRecord(db, st));
   }),
@@ -280,6 +311,7 @@ export const studentHandlers = [
     if (st.status === "ACTIVE") return HttpResponse.json({ error: `${st.fullName} is already a current student.` }, { status: 409 });
     st.status = "ACTIVE";
     st.left = null;
+    event(st, "READMITTED", `Readmitted to ${db.arms.find((a) => a.id === st.armId)!.name}`);
     saveSchool(db);
     return HttpResponse.json<StudentRecord>(studentRecord(db, st));
   }),

@@ -1,18 +1,16 @@
-import { useState, type FormEvent, type ReactNode } from "react";
-import type { ArmSummary, Gender, StudentRecord, StudentStatus } from "@brillanda/shared-types";
+import { useState, type FormEvent } from "react";
+import type { AdminStudent, ArmSummary, Gender, StudentRecord, StudentStatus } from "@brillanda/shared-types";
 import { fieldError, generalError } from "../../shared/auth/LoginPage";
 import { Alert } from "../../shared/components/Alert";
 import { Button } from "../../shared/components/Button";
 import { Icon } from "../../shared/components/Icon";
-import { Dialog, PanelTitle, SidePanel } from "../../shared/components/Overlay";
+import { Dialog } from "../../shared/components/Overlay";
 import { PageSpinner } from "../../shared/components/Spinner";
 import { SelectField, TextAreaField, TextField } from "../../shared/components/TextField";
 import { toast } from "../../shared/components/Toast";
-import { levelStyle } from "../../shared/theme/levels";
 import { cx } from "../../shared/utils/cx";
 import { formatDate } from "../../shared/utils/time";
-import { SECTIONS, useAdmissionNumbers, useArms, useEnrolStudent, useLeaveSchool, useReadmit, useStudent, useUpdateStudent } from "./api";
-import { ParentBadge } from "./parts";
+import { SECTIONS, useAdmissionNumbers, useArms, useEnrolStudent, useInviteParent, useLeaveSchool, useUpdateStudent } from "./api";
 
 // Enrolling one student, and their record: details, moving class, leaving and coming back
 // (DECISIONS.md F-40). Everything a student did stays on their record after they leave.
@@ -180,7 +178,7 @@ function EnrolForm({ onClose, onEnrolled }: { onClose: () => void; onEnrolled?: 
   );
 }
 
-function EditStudentDialog({ student, onClose }: { student: StudentRecord; onClose: () => void }) {
+export function EditStudentDialog({ student, onClose }: { student: StudentRecord; onClose: () => void }) {
   const arms = useArms();
   const update = useUpdateStudent();
   const [draft, setDraft] = useState<Draft>(() => fromRecord(student));
@@ -216,7 +214,7 @@ function EditStudentDialog({ student, onClose }: { student: StudentRecord; onClo
   );
 }
 
-function LeaveDialog({ student, onClose }: { student: StudentRecord; onClose: () => void }) {
+export function LeaveDialog({ student, onClose }: { student: StudentRecord; onClose: () => void }) {
   const leave = useLeaveSchool();
   const [status, setStatus] = useState<Exclude<StudentStatus, "ACTIVE">>("WITHDRAWN");
   const [on, setOn] = useState(today());
@@ -255,87 +253,42 @@ function LeaveDialog({ student, onClose }: { student: StudentRecord; onClose: ()
   );
 }
 
-const ageOn = (dob: string, on = new Date()) => {
+/** Age in whole years on a day (today by default). */
+export const ageOn = (dob: string, on = new Date()) => {
   const born = new Date(dob);
   let age = on.getFullYear() - born.getFullYear();
   if (on.getMonth() < born.getMonth() || (on.getMonth() === born.getMonth() && on.getDate() < born.getDate())) age -= 1;
   return age;
 };
 
-/** One student's record, opened from the Students page. */
-export function StudentPanel({ studentId, onClose, onInviteParent }: { studentId: string | null; onClose: () => void; onInviteParent: (student: StudentRecord) => void }) {
-  const student = useStudent(studentId);
-  const readmit = useReadmit();
-  const [dialog, setDialog] = useState<"edit" | "leave" | null>(null);
-  if (!studentId) return null;
-  const s = student.data;
-
-  return (
-    <SidePanel open onClose={onClose} label={s?.fullName ?? "Student"}>
-      {student.isPending ? (
-        <PageSpinner />
-      ) : student.error || !s ? (
-        <Alert tone="danger">{student.error?.message ?? "This student couldn't be found."}</Alert>
-      ) : (
-        <>
-          <PanelTitle icon="students" title={s.fullName} tint={{ bg: levelStyle(s.classOrder)["--tint"], fg: levelStyle(s.classOrder)["--deep"] }}>
-            {s.status === "ACTIVE" ? s.armName : `Last in ${s.armName}`}, {s.admissionNo}
-          </PanelTitle>
-          {s.status !== "ACTIVE" && s.left && (
-            <div className="grid gap-1 rounded-3xl bg-warning-bg p-4 text-sm">
-              <b className="font-semibold">{leftSummary(s)}</b>
-              {s.left.reason && <span>{s.left.reason}</span>}
-            </div>
-          )}
-          <Facts
-            rows={[
-              ["Gender", s.gender ? (s.gender === "FEMALE" ? "Female" : "Male") : "Not given"],
-              ["Date of birth", s.dob ? `${formatDate(s.dob)} (${ageOn(s.dob)})` : "Not given"],
-              ["Joined", formatDate(s.joinedOn)],
-            ]}
-          />
-          <Facts
-            title="Parent or guardian"
-            rows={[
-              ["Name", s.guardian.name ?? "Not given"],
-              ["Phone", s.guardian.phone ?? "Not given"],
-              ["Email", s.guardian.email ?? "Not given"],
-              ["Sees results", <ParentBadge key="p" status={s.parentStatus} />],
-            ]}
-          />
-          {readmit.error && <Alert tone="danger">{readmit.error.message}</Alert>}
-          <div className="mt-auto grid gap-2">
-            {s.status === "ACTIVE" && s.parentStatus === "NONE" && (
-              <Button variant="secondary" onClick={() => onInviteParent(s)}><Icon name="mail" className="h-4 w-4" />Invite parent</Button>
-            )}
-            <Button variant="secondary" onClick={() => setDialog("edit")}>Edit details or move class</Button>
-            {s.status === "ACTIVE" ? (
-              <Button variant="danger-quiet" onClick={() => setDialog("leave")}>Mark as left</Button>
-            ) : (
-              <Button loading={readmit.isPending} onClick={() => readmit.mutate(s.id, { onSuccess: () => toast(`${firstName(s.fullName)} is back in ${s.armName}`) })}>Readmit to {s.armName}</Button>
-            )}
-          </div>
-          {dialog === "edit" && <EditStudentDialog student={s} onClose={() => setDialog(null)} />}
-          {dialog === "leave" && <LeaveDialog student={s} onClose={() => setDialog(null)} />}
-        </>
-      )}
-    </SidePanel>
-  );
+export function InviteParentDialog({ student, onClose }: { student: Pick<AdminStudent, "id" | "fullName"> | null; onClose: () => void }) {
+  if (!student) return null;
+  return <InviteParentForm key={student.id} student={student} onClose={onClose} />;
 }
 
-function Facts({ title, rows }: { title?: string; rows: [string, ReactNode][] }) {
+function InviteParentForm({ student, onClose }: { student: Pick<AdminStudent, "id" | "fullName">; onClose: () => void }) {
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const invite = useInviteParent();
+  const first = student.fullName.split(" ")[0];
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    invite.mutate({ studentId: student.id, fullName, email }, { onSuccess: () => { toast(`Invite sent to ${email.trim()}`); onClose(); } });
+  };
+
   return (
-    <section className="rounded-3xl bg-surface p-5 shadow-raised">
-      {title && <h3 className="mb-3 text-sm font-semibold">{title}</h3>}
-      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-5 gap-y-2.5 text-sm">
-        {rows.map(([label, value]) => (
-          <div key={label} className="contents">
-            <dt className="text-text-secondary">{label}</dt>
-            <dd className="m-0 min-w-0 break-words text-right font-medium">{value}</dd>
-          </div>
-        ))}
-      </dl>
-    </section>
+    <Dialog open onClose={onClose} title={`Invite ${first}'s parent`} description={`They'll get a link to set a password and see ${first}'s results. It works for 72 hours.`}>
+      <form onSubmit={submit} className="grid gap-4" noValidate>
+        <TextField label="Parent's name" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder={`e.g. Mrs Bola ${student.fullName.split(" ").slice(-1)[0]}`} data-autofocus error={fieldError(invite.error, "fullName")} />
+        <TextField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoCapitalize="none" spellCheck={false} error={fieldError(invite.error, "email")} hint="No email? Print an access code from the student's record instead." />
+        {generalError(invite.error) && <Alert tone="danger">{generalError(invite.error)}</Alert>}
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" loading={invite.isPending}><Icon name="mail" className="h-4 w-4" />Send invite</Button>
+        </div>
+      </form>
+    </Dialog>
   );
 }
 

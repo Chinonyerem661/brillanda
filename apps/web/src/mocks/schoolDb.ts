@@ -1,4 +1,4 @@
-import { defaultAdmissionPattern, formatAdmissionNo, type EntryState, type Gender, type GradeBand, type GuardianDetails, type ParentStatus, type SchoolProfile, type StudentStatus, type TermDates } from "@brillanda/shared-types";
+import { defaultAdmissionPattern, formatAdmissionNo, type EntryState, type Gender, type GradeBand, type GuardianDetails, type ParentStatus, type SchoolProfile, type StudentEvent, type StudentNote, type StudentStatus, type TermDates } from "@brillanda/shared-types";
 import { MOCK_COMPONENTS, MOCK_GRADING_SCALE, MOCK_TERM } from "./db";
 
 // Stand-in data for the school admin portal (DECISIONS.md D-7, F-37): one whole school, 12 arms
@@ -35,6 +35,10 @@ export type StudentRow = {
   joinedOn: string;
   status: StudentStatus;
   left: { on: string; reason: string | null } | null;
+  /** Added with the student page (F-42); absent on records saved before it. */
+  photoUrl?: string | null;
+  events?: StudentEvent[];
+  notes?: StudentNote[];
 };
 
 /** Where the school is in getting set up. `imported` is set by the student import (step 4). */
@@ -73,7 +77,7 @@ export const sheetId = (armId: string, subjectId: string) => `${armId}:${subject
 export const COMPONENTS = MOCK_COMPONENTS;
 export const TERM = MOCK_TERM;
 
-function rng(seed: number) {
+export function rng(seed: number) {
   return () => {
     seed = (seed + 0x6d2b79f5) | 0;
     let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);

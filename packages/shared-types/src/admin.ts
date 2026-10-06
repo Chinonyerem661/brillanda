@@ -1,5 +1,6 @@
 import type { GradeBand } from "./grading";
 import type { EntryState, PublishState } from "./index";
+import type { TermResult } from "./parent";
 import type { ScoreSheet, ScoreSheetComponent, TermRef } from "./teacher";
 
 // API contract for the school admin portal (DECISIONS.md F-37). The web app is built against
@@ -120,6 +121,16 @@ export type AdminStudent = {
 
 export type GuardianDetails = { name: string | null; phone: string | null; email: string | null };
 
+/** Something that happened to a student's record, for their timeline (F-42). */
+export type StudentEvent = {
+  at: string;
+  kind: "ENROLLED" | "MOVED" | "LEFT" | "READMITTED" | "PARENT_INVITED" | "DETAILS_CHANGED";
+  text: string;
+};
+
+/** A note the school keeps on a student: health, scholarship, behaviour. Seen by staff only. */
+export type StudentNote = { id: string; text: string; createdAt: string; author: string };
+
 /** GET /admin/students/:id */
 export type StudentRecord = AdminStudent & {
   dob: string | null;
@@ -127,7 +138,39 @@ export type StudentRecord = AdminStudent & {
   /** When they joined the school; mid-session joiners have a date inside the session. */
   joinedOn: string;
   left: { on: string; reason: string | null } | null;
+  photoUrl: string | null;
+  /** Their class in each session, oldest first (from Enrollment rows). */
+  classHistory: { sessionName: string; armName: string }[];
+  /** Newest first. */
+  events: StudentEvent[];
+  /** Newest first. */
+  notes: StudentNote[];
 };
+
+/**
+ * GET /admin/students/:id/results: this term as it stands (null once they've left), and every
+ * published term before it, oldest first. A past term's card is at
+ * GET /admin/students/:id/report-cards/:termId; this term's at GET /admin/report-cards/:studentId.
+ */
+export type StudentResults = {
+  current: {
+    term: TermRef;
+    armName: string;
+    published: boolean;
+    subjects: { subjectId: string; subjectName: string; status: EntryState; total: number | null; complete: boolean; grade: string | null }[];
+    /** Once every subject is complete. */
+    average: number | null;
+    position: number | null;
+    of: number;
+  } | null;
+  past: TermResult[];
+};
+
+/** POST /admin/students/:id/notes; DELETE /admin/students/:id/notes/:noteId */
+export type AddStudentNoteRequest = { text: string };
+
+/** POST /admin/students/:id/photo (multipart, field `photo`) and DELETE /admin/students/:id/photo. */
+export type StudentPhotoResponse = { photoUrl: string | null };
 
 /**
  * POST /admin/students: enrols one student into an arm for the current session. A blank

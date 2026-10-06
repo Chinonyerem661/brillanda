@@ -31,10 +31,10 @@ describe("enrolment", () => {
 
     expect(await screen.findByText(`Chidera is enrolled in JSS 1A as ${next}. Invite sent`)).toBeInTheDocument();
     await user.type(screen.getByRole("searchbox", { name: "Search students" }), "Chidera Okafor");
-    await user.click(await screen.findByRole("button", { name: new RegExp(`Chidera Okafor ${next.replace(/\//g, "\\/")}`) }));
-    const panel = await screen.findByRole("dialog", { name: "Chidera Okafor" });
-    expect(within(panel).getByText("Female")).toBeInTheDocument();
-    expect(within(panel).getByText("Invite sent")).toBeInTheDocument();
+    await user.click(await screen.findByRole("link", { name: new RegExp(`Chidera Okafor ${next.replace(/\//g, "\\/")}`) }));
+    expect(await screen.findByRole("heading", { name: "Chidera Okafor", level: 1 })).toBeInTheDocument();
+    expect(screen.getByText(/^Female\./)).toBeInTheDocument();
+    expect(await screen.findByText("Invite sent")).toBeInTheDocument();
   });
 
   it("refuses an admission number another student already has", { timeout: 20_000 }, async () => {
@@ -58,26 +58,24 @@ describe("enrolment", () => {
   it("keeps a student who leaves on record, and can readmit them", { timeout: 20_000 }, async () => {
     const { user } = signInAsAdmin();
 
-    const tabs = await screen.findByRole("group", { name: "Show" });
-    expect(within(tabs).getByRole("button", { name: /Left the school/ })).toHaveTextContent("2");
+    const leftTab = async () => within(await screen.findByRole("group", { name: "Show" })).getByRole("button", { name: /Left the school/ });
+    expect(await leftTab()).toHaveTextContent("2");
     await user.type(screen.getByRole("searchbox", { name: "Search students" }), "Chiamaka");
-    await user.click(await screen.findByRole("button", { name: /^Chiamaka Okafor/ }));
-    let panel = await screen.findByRole("dialog", { name: "Chiamaka Okafor" });
-    await user.click(within(panel).getByRole("button", { name: "Mark as left" }));
+    await user.click(await screen.findByRole("link", { name: /^Chiamaka Okafor/ }));
+    await user.click(await screen.findByRole("button", { name: "Mark as left" }));
 
     const leave = await screen.findByRole("dialog", { name: "Chiamaka is leaving" });
     await user.click(within(leave).getByRole("radio", { name: /Transferred/ }));
     await user.type(within(leave).getByLabelText("Note (optional)"), "Moved to Abuja");
     await user.click(within(leave).getByRole("button", { name: "Mark as transferred" }));
     expect(await screen.findByText("Chiamaka is marked as transferred")).toBeInTheDocument();
-    panel = screen.getByRole("dialog", { name: "Chiamaka Okafor" });
-    expect(await within(panel).findByText(/^Transferred /)).toBeInTheDocument();
-    expect(within(panel).getByText("Moved to Abuja")).toBeInTheDocument();
+    expect(await screen.findByText(/^Transferred \d/)).toBeInTheDocument();
+    expect(screen.getByText("Moved to Abuja")).toBeInTheDocument();
 
-    await waitFor(() => expect(within(tabs).getByRole("button", { name: /Left the school/ })).toHaveTextContent("3"));
-    await user.click(within(panel).getByRole("button", { name: "Readmit to JSS 2B" }));
+    await user.click(screen.getByRole("button", { name: "Readmit to JSS 2B" }));
     expect(await screen.findByText("Chiamaka is back in JSS 2B")).toBeInTheDocument();
-    await waitFor(() => expect(within(tabs).getByRole("button", { name: /Left the school/ })).toHaveTextContent("2"));
+    await user.click(screen.getAllByRole("link", { name: "Students" })[0]!);
+    await waitFor(async () => expect(await leftTab()).toHaveTextContent("2"));
   });
 
   it("starts a new school with an invitation to enrol", async () => {
